@@ -369,6 +369,9 @@ void VisualizationManager::onUpdate()
     render_requested_ = 0;
     boost::mutex::scoped_lock lock(private_->render_mutex_);
     ogre_root_->renderOneFrame();
+    Ogre::String s = (boost::format("visman_%06d.bmp") % frame_count_).str();
+    render_panel_->getRenderWindow()->writeContentsToFile(s); 
+    // ROS_INFO_ONCE("%s", s.c_str());
   }
 }
 

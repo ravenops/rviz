@@ -80,7 +80,7 @@ class ViewportMouseEvent;
 class WindowManagerInterface;
 class Tool;
 class OgreRenderQueueClearer;
-
+class ScreenshotManager;
 class VisualizationManagerPrivate;
 
 /**
@@ -393,6 +393,8 @@ protected:
   FrameManager* frame_manager_;
 
   OgreRenderQueueClearer* ogre_render_queue_clearer_;
+
+  ScreenshotManager* screenshot_manager_;
 
 private Q_SLOTS:
   void updateFixedFrame();
