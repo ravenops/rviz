@@ -428,7 +428,7 @@ Ogre::RenderWindow* RenderSystem::makeRenderWindow(
   stereo_supported_ = is_stereo;
 
   ROS_INFO_ONCE("Stereo is %s", stereo_supported_ ? "SUPPORTED" : "NOT SUPPORTED");
-
+  
   return window;
 }
 
@@ -477,6 +477,7 @@ Ogre::RenderWindow* RenderSystem::tryMakeRenderWindow(
   {
     ROS_INFO( "Created render window after %d attempts.", attempts );
   }
+  ROS_INFO(" created rendew window named '%s' %dx%d", name.c_str(), width, height);
 
   return window;
 }

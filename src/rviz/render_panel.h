@@ -43,7 +43,7 @@
 
 namespace Ogre
 {
-class Root;
+class Root; 
 class Camera;
 class RaySceneQuery;
 class ParticleSystem;
@@ -94,6 +94,8 @@ public:
   /** Show the given menu as a context menu, positioned based on the
    * current mouse position.  This can be called from any thread. */
   void showContextMenu( boost::shared_ptr<QMenu> menu );
+
+  Ogre::RenderWindow* getRenderWindow() { return render_window_; }
 
   /** Return true if the context menu for this panel is visible */
   bool contextMenuVisible();

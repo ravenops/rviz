@@ -30,7 +30,7 @@
 #include <algorithm>
 
 #include <QApplication>
-#include <QCursor>
+#include <QCursor> 
 #include <QPixmap>
 #include <QTimer>
 #if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
@@ -80,6 +80,7 @@
 #include "rviz/load_resource.h"
 #include "rviz/ogre_helpers/ogre_render_queue_clearer.h"
 #include "rviz/ogre_helpers/render_system.h"
+#include "rviz/ogre_helpers/screenshot_manager.h"
 
 #include "rviz/visualization_manager.h"
 #include "rviz/window_manager_interface.h"
@@ -117,7 +118,7 @@ public:
   boost::mutex render_mutex_;
 };
 
-VisualizationManager::VisualizationManager( RenderPanel* render_panel, WindowManagerInterface* wm, boost::shared_ptr<tf::TransformListener> tf )
+VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesConfig* dump_images_config, WindowManagerInterface* wm, boost::shared_ptr<tf::TransformListener> tf )
 : ogre_root_( Ogre::Root::getSingletonPtr() )
 , update_timer_(0)
 , shutting_down_(false)
@@ -200,7 +201,13 @@ VisualizationManager::VisualizationManager( RenderPanel* render_panel, WindowMan
 
   ogre_render_queue_clearer_ = new OgreRenderQueueClearer();
   Ogre::Root::getSingletonPtr()->addFrameListener( ogre_render_queue_clearer_ );
-
+ 
+  if(dump_images_config != NULL && dump_images_config->enabled){
+    screenshot_manager_ = new ScreenshotManager(ogre_root_, render_panel_, dump_images_config->scale,dump_images_config->folder,"jpg");
+  }else{
+    screenshot_manager_ = NULL;
+  }
+  
   update_timer_ = new QTimer;
   connect( update_timer_, SIGNAL( timeout() ), this, SLOT( onUpdate() ));
 }
@@ -355,11 +362,13 @@ void VisualizationManager::onUpdate()
     tool_manager_->getCurrentTool()->update(wall_dt, ros_dt);
   }
 
-  if ( view_manager_ &&
-        view_manager_->getCurrent() &&
-        view_manager_->getCurrent()->getCamera() )
+  Ogre::Camera* cam;
+  if ( view_manager_ && view_manager_->getCurrent() )
   {
-    directional_light_->setDirection(view_manager_->getCurrent()->getCamera()->getDerivedDirection());
+    cam = view_manager_->getCurrent()->getCamera();
+    if( cam != NULL){
+      directional_light_->setDirection(cam->getDerivedDirection());
+    }
   }
 
   frame_count_++;
@@ -369,6 +378,23 @@ void VisualizationManager::onUpdate()
     render_requested_ = 0;
     boost::mutex::scoped_lock lock(private_->render_mutex_);
     ogre_root_->renderOneFrame();
+
+    if (screenshot_manager_ != NULL && cam != NULL){
+      Ogre::String s = (boost::format("%08d") % frame_count_).str();
+      unsigned int w = render_panel_->width();
+      unsigned int h = render_panel_->height();
+      Ogre::ColourValue bg_color = render_panel_->getViewport()->getBackgroundColour();
+      screenshot_manager_->makeScreenshot(cam,s,bg_color,w,h);
+      ROS_INFO(
+        "%s %x%x%x %dx%d", 
+        s.c_str(),
+        int(bg_color.r*255), 
+        int(bg_color.g*255), 
+        int(bg_color.b*255), 
+        render_panel_->width(), 
+        render_panel_->height()
+      ); 
+    }
   }
 }
 

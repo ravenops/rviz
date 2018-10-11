@@ -39,6 +39,7 @@
 #include "rviz/config.h"
 #include "rviz/window_manager_interface.h"
 #include "rviz/panel.h"
+#include "rviz/dump_images_config.h"
 
 #include <ros/time.h>
 
@@ -99,7 +100,7 @@ public:
    * This function also calls VisualizationManager::initialize(),
    * which means it will start the update timer and generally get
    * things rolling. */
-  void initialize( const QString& display_config_file = "" );
+  void initialize(const QString& display_config_file = "", DumpImagesConfig* dump_images_config=NULL);
 
   VisualizationManager* getManager() { return manager_; }
 

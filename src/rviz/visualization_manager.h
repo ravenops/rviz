@@ -38,6 +38,7 @@
 #include "rviz/bit_allocator.h"
 #include "rviz/config.h"
 #include "rviz/display_context.h"
+#include "rviz/dump_images_config.h"
 
 class QKeyEvent;
 class QTimer;
@@ -80,8 +81,9 @@ class ViewportMouseEvent;
 class WindowManagerInterface;
 class Tool;
 class OgreRenderQueueClearer;
-
 class VisualizationManagerPrivate;
+
+class ScreenshotManager;
 
 /**
  * \brief The VisualizationManager class is the central manager class
@@ -109,7 +111,7 @@ public:
    *        VisualizationFrame, the top-level container widget of rviz).
    * @param tf a pointer to tf::TransformListener which will be internally used by FrameManager.
    */
-  VisualizationManager( RenderPanel* render_panel, WindowManagerInterface* wm = 0, boost::shared_ptr<tf::TransformListener> tf = boost::shared_ptr<tf::TransformListener>() );
+  VisualizationManager(RenderPanel* render_panel,DumpImagesConfig* dump_images_config = NULL, WindowManagerInterface* wm = NULL, boost::shared_ptr<tf::TransformListener> tf = boost::shared_ptr<tf::TransformListener>() );
 
   /**
    * \brief Destructor
@@ -393,6 +395,8 @@ protected:
   FrameManager* frame_manager_;
 
   OgreRenderQueueClearer* ogre_render_queue_clearer_;
+
+  ScreenshotManager* screenshot_manager_;
 
 private Q_SLOTS:
   void updateFixedFrame();
