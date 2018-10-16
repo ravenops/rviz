@@ -80,8 +80,9 @@ class ViewportMouseEvent;
 class WindowManagerInterface;
 class Tool;
 class OgreRenderQueueClearer;
-class ScreenshotManager;
 class VisualizationManagerPrivate;
+
+class ScreenshotManager;
 
 /**
  * \brief The VisualizationManager class is the central manager class

@@ -2,23 +2,12 @@
 #ifndef OGRE_TOOLS_SCREENSHOTMANAGER_H
 #define OGRE_TOOLS_SCREENSHOTMANAGER_H
 
-
-#include <OgreRenderTexture.h>
+#include <OgrePrerequisites.h>
+#include <OgreRoot.h>
 #include <OgreHardwarePixelBuffer.h>
+// #include <OgreRenderWindow.h>
 
-namespace Ogre
-{
-class String;
-class Matrix4;
-class RenderWindow;
-class Camera;
-class TexturePtr;
-class RenderTexture;
-class HardwarePixelBufferSharedPtr;
-class PixelBox;
-class uint8;
-}
-
+#include "rviz/render_panel.h"
 namespace rviz
 {
    /* Class encapsulates Screenshot functionality and provides a method for making multi grid screenshots.    
@@ -35,16 +24,17 @@ namespace rviz
     class ScreenshotManager
     {
     public:
-      ScreenshotManager(Ogre::RenderWindow* pRenderWindow, int gridSize, Ogre::String fileExtension, bool overlayFlag);
+      ScreenshotManager(Ogre::Root* root,RenderPanel* pRenderPanel, int gridSize, Ogre::String fileExtension, bool overlayFlag);
       ~ScreenshotManager();
 
    /* Creates a screenshot with the given camera.
     * @param camera Pointer to the camera "looking at" the scene of interest
     * @param fileName the filename of the screenshot file.
    */
-      void makeScreenshot(Ogre::Camera* camera, Ogre::String fileName) const;
+      void makeScreenshot(Ogre::Camera* camera, Ogre::String fileName, Ogre::ColourValue bgColor, unsigned int width, unsigned int height);
      
    protected:
+      Ogre::Root*     root ;
       Ogre::String     mFileExtension ;
       unsigned int   mGridSize, mWindowWidth, mWindowHeight;
       bool           mDisableOverlays;
@@ -56,6 +46,7 @@ namespace rviz
       Ogre::PixelBox  mFinalPicturePB;
       //Pointer to the color data of the pixel box
       Ogre::uint8* mData;
+      RenderPanel* renderPanel;
     };
 }
 #endif  // OGRE_TOOLS_SCREENSHOTMANAGER_H

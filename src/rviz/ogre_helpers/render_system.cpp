@@ -477,7 +477,7 @@ Ogre::RenderWindow* RenderSystem::tryMakeRenderWindow(
   {
     ROS_INFO( "Created render window after %d attempts.", attempts );
   }
-  ROS_INFO(" ccreated rendew window named '%s' %dx%d", name.c_str(), width, height);
+  ROS_INFO(" created rendew window named '%s' %dx%d", name.c_str(), width, height);
 
   return window;
 }

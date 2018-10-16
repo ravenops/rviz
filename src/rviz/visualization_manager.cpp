@@ -30,7 +30,7 @@
 #include <algorithm>
 
 #include <QApplication>
-#include <QCursor>
+#include <QCursor> 
 #include <QPixmap>
 #include <QTimer>
 #if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
@@ -80,6 +80,7 @@
 #include "rviz/load_resource.h"
 #include "rviz/ogre_helpers/ogre_render_queue_clearer.h"
 #include "rviz/ogre_helpers/render_system.h"
+#include "rviz/ogre_helpers/screenshot_manager.h"
 
 #include "rviz/visualization_manager.h"
 #include "rviz/window_manager_interface.h"
@@ -200,7 +201,9 @@ VisualizationManager::VisualizationManager( RenderPanel* render_panel, WindowMan
 
   ogre_render_queue_clearer_ = new OgreRenderQueueClearer();
   Ogre::Root::getSingletonPtr()->addFrameListener( ogre_render_queue_clearer_ );
-
+ 
+  screenshot_manager_ = new ScreenshotManager(ogre_root_, render_panel_, 1, "jpg", false);
+  
   update_timer_ = new QTimer;
   connect( update_timer_, SIGNAL( timeout() ), this, SLOT( onUpdate() ));
 }
@@ -355,11 +358,13 @@ void VisualizationManager::onUpdate()
     tool_manager_->getCurrentTool()->update(wall_dt, ros_dt);
   }
 
-  if ( view_manager_ &&
-        view_manager_->getCurrent() &&
-        view_manager_->getCurrent()->getCamera() )
+  Ogre::Camera* cam;
+  if ( view_manager_ && view_manager_->getCurrent() )
   {
-    directional_light_->setDirection(view_manager_->getCurrent()->getCamera()->getDerivedDirection());
+    cam = view_manager_->getCurrent()->getCamera();
+    if( cam != NULL){
+      directional_light_->setDirection(cam->getDerivedDirection());
+    }
   }
 
   frame_count_++;
@@ -369,9 +374,23 @@ void VisualizationManager::onUpdate()
     render_requested_ = 0;
     boost::mutex::scoped_lock lock(private_->render_mutex_);
     ogre_root_->renderOneFrame();
-    Ogre::String s = (boost::format("visman_%06d.bmp") % frame_count_).str();
-    render_panel_->getRenderWindow()->writeContentsToFile(s); 
-    // ROS_INFO_ONCE("%s", s.c_str());
+
+    if (cam != NULL){
+      Ogre::String s = (boost::format("dump/visman_%06d") % frame_count_).str();
+      unsigned int w = render_panel_->width();
+      unsigned int h = render_panel_->height();
+      Ogre::ColourValue bgColor = render_panel_->getViewport()->getBackgroundColour();
+      screenshot_manager_->makeScreenshot(cam,s,bgColor,w,h);
+      ROS_INFO(
+        "%s %x%x%x %dx%d", 
+        s.c_str(),
+        int(bgColor.r*255), 
+        int(bgColor.g*255), 
+        int(bgColor.b*255), 
+        render_panel_->width(), 
+        render_panel_->height()
+      ); 
+    }
   }
 }
 

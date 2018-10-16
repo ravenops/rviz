@@ -42,6 +42,7 @@
 #include <QWindow>
 #endif
 
+#include <ros/console.h>
 namespace rviz
 {
 
@@ -127,7 +128,10 @@ void RenderWidget::resizeEvent(QResizeEvent *e)
     // VisualizationFrame::onSaveImage()) does not work right for
     // window with an odd width, so here I just always force it to be
     // even.
-    render_window_->resize( width() + (width() % 2), height() );
+    unsigned int w =  width() + (width() % 2);
+    unsigned int h = height();
+    ROS_INFO("RenderWidget::resizeEvent %dx%d",w,h);
+    render_window_->resize(w,h);
     render_window_->windowMovedOrResized();
   }
 }
