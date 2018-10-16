@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "*.sql": "sql",
+        "qapplication": "cpp",
+        "new": "cpp"
+    }
+}
