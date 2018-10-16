@@ -144,15 +144,18 @@ bool VisualizerApp::init( int argc, char** argv )
       ("disable-anti-aliasing", "Prevent rviz from trying to use anti-aliasing when rendering.")
       ("no-stereo", "Disable the use of stereo rendering.")
       ("verbose,v", "Enable debug visualizations")
-      ("log-level-debug", "Sets the ROS logger level to debug.");
+      ("log-level-debug", "Sets the ROS logger level to debug.")
+      ("dump-images", "On every screen render dump a jpg of contents.")
+      ("dump-folder",po::value<std::string>(), "Sets the folder for dumped images.");
     po::variables_map vm;
-    std::string display_config, fixed_frame, splash_path, help_path;
+    std::string display_config, fixed_frame, splash_path, help_path, dump_folder;
     bool enable_ogre_log = false;
     bool in_mc_wrapper = false;
     bool verbose = false;
     int force_gl_version = 0;
     bool disable_anti_aliasing = false;
     bool disable_stereo = false;
+    bool dump_images = false;
     try
     {
       po::store( po::parse_command_line( argc, argv, options ), vm );
@@ -229,6 +232,19 @@ bool VisualizerApp::init( int argc, char** argv )
           ros::console::notifyLoggerLevelsChanged();
         }
       }
+
+      if(vm.count("dump-images"))
+      {
+        dump_images = true;
+      }
+
+      if (vm.count("dump-folder"))
+      {
+        dump_folder = vm["dump-folder"].as<std::string>();
+      }
+      else{
+        dump_folder = "dump";
+      }
     }
     catch (std::exception& e)
     {
@@ -278,7 +294,7 @@ bool VisualizerApp::init( int argc, char** argv )
     {
       frame_->setSplashPath( QString::fromStdString( splash_path ));
     }
-    frame_->initialize( QString::fromStdString( display_config ));
+    frame_->initialize(QString::fromStdString(display_config ), dump_images);
     if( !fixed_frame.empty() )
     {
       frame_->getManager()->setFixedFrame( QString::fromStdString( fixed_frame ));

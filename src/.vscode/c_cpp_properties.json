@@ -4,7 +4,9 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**", 
-                "${workspaceFolder}/../../../install_isolated/include",
+                "${workspaceFolder}/../../ros_comm/rosconsole/include/**",
+                "${workspaceFolder}/../../ros_comm/roscpp/include/**",
+                "${workspaceFolder}/../../ros/roslib/include/**",
                 "/usr/include/OGRE/**",
                 "/usr/include/qt4/**"
             ],

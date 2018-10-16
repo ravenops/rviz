@@ -99,7 +99,7 @@ public:
    * This function also calls VisualizationManager::initialize(),
    * which means it will start the update timer and generally get
    * things rolling. */
-  void initialize( const QString& display_config_file = "" );
+  void initialize(const QString& display_config_file = "", bool shouldDumpFrames=false);
 
   VisualizationManager* getManager() { return manager_; }
 
