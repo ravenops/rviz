@@ -2,6 +2,12 @@
     "files.associations": {
         "*.sql": "sql",
         "qapplication": "cpp",
-        "new": "cpp"
+        "new": "cpp",
+        "iostream": "cpp",
+        "array": "cpp",
+        "hash_map": "cpp",
+        "hash_set": "cpp",
+        "bitset": "cpp",
+        "chrono": "cpp"
     }
 }
