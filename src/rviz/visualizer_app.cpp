@@ -36,6 +36,8 @@
 #include <OgreGpuProgramManager.h>
 #include <OgreHighLevelGpuProgramManager.h>
 #include <std_srvs/Empty.h>
+#include <boost/filesystem.hpp>
+
 
 #ifdef Q_OS_MAC
 #include <ApplicationServices/ApplicationServices.h>
@@ -54,6 +56,7 @@
 #include "rviz/visualization_manager.h"
 #include "rviz/wait_for_master_dialog.h"
 #include "rviz/ogre_helpers/render_system.h"
+#include "rviz/dump_images_config.h"
 
 #include "rviz/visualizer_app.h"
 
@@ -64,62 +67,60 @@ namespace po = boost::program_options;
 namespace rviz
 {
 
-bool reloadShaders(std_srvs::Empty::Request&, std_srvs::Empty::Response&)
+bool reloadShaders(std_srvs::Empty::Request &, std_srvs::Empty::Response &)
 {
   ROS_INFO("Reloading materials.");
   {
-  Ogre::ResourceManager::ResourceMapIterator it = Ogre::MaterialManager::getSingleton().getResourceIterator();
-  while (it.hasMoreElements())
-  {
-    Ogre::ResourcePtr resource = it.getNext();
-    resource->reload();
-  }
+    Ogre::ResourceManager::ResourceMapIterator it = Ogre::MaterialManager::getSingleton().getResourceIterator();
+    while (it.hasMoreElements())
+    {
+      Ogre::ResourcePtr resource = it.getNext();
+      resource->reload();
+    }
   }
   ROS_INFO("Reloading high-level gpu shaders.");
   {
-  Ogre::ResourceManager::ResourceMapIterator it = Ogre::HighLevelGpuProgramManager::getSingleton().getResourceIterator();
-  while (it.hasMoreElements())
-  {
-    Ogre::ResourcePtr resource = it.getNext();
-    resource->reload();
-  }
+    Ogre::ResourceManager::ResourceMapIterator it = Ogre::HighLevelGpuProgramManager::getSingleton().getResourceIterator();
+    while (it.hasMoreElements())
+    {
+      Ogre::ResourcePtr resource = it.getNext();
+      resource->reload();
+    }
   }
   ROS_INFO("Reloading gpu shaders.");
   {
-  Ogre::ResourceManager::ResourceMapIterator it = Ogre::GpuProgramManager::getSingleton().getResourceIterator();
-  while (it.hasMoreElements())
-  {
-    Ogre::ResourcePtr resource = it.getNext();
-    resource->reload();
-  }
+    Ogre::ResourceManager::ResourceMapIterator it = Ogre::GpuProgramManager::getSingleton().getResourceIterator();
+    while (it.hasMoreElements())
+    {
+      Ogre::ResourcePtr resource = it.getNext();
+      resource->reload();
+    }
   }
   return true;
 }
 
 VisualizerApp::VisualizerApp()
-  : app_( 0 )
-  , continue_timer_( 0 )
-  , frame_( 0 )
+    : app_(0), continue_timer_(0), frame_(0)
 {
 }
 
-void VisualizerApp::setApp( QApplication * app )
+void VisualizerApp::setApp(QApplication *app)
 {
   app_ = app;
 }
 
-bool VisualizerApp::init( int argc, char** argv )
+bool VisualizerApp::init(int argc, char **argv)
 {
-  ROS_INFO( "rviz version %s", get_version().c_str() );
-  ROS_INFO( "compiled against Qt version " QT_VERSION_STR );
-  ROS_INFO( "compiled against OGRE version %d.%d.%d%s (%s)",
-            OGRE_VERSION_MAJOR, OGRE_VERSION_MINOR, OGRE_VERSION_PATCH,
-            OGRE_VERSION_SUFFIX, OGRE_VERSION_NAME );
+  ROS_INFO("rviz version %s", get_version().c_str());
+  ROS_INFO("compiled against Qt version " QT_VERSION_STR);
+  ROS_INFO("compiled against OGRE version %d.%d.%d%s (%s)",
+           OGRE_VERSION_MAJOR, OGRE_VERSION_MINOR, OGRE_VERSION_PATCH,
+           OGRE_VERSION_SUFFIX, OGRE_VERSION_NAME);
 
 #ifdef Q_OS_MAC
   ProcessSerialNumber PSN;
   GetCurrentProcess(&PSN);
-  TransformProcessType(&PSN,kProcessTransformToForegroundApplication);
+  TransformProcessType(&PSN, kProcessTransformToForegroundApplication);
   SetFrontProcess(&PSN);
 #endif
 
@@ -127,12 +128,12 @@ bool VisualizerApp::init( int argc, char** argv )
   try
   {
 #endif
-    ros::init( argc, argv, "rviz", ros::init_options::AnonymousName );
+    ros::init(argc, argv, "rviz", ros::init_options::AnonymousName);
 
     startContinueChecker();
 
     po::options_description options;
-    options.add_options()
+       options.add_options()
       ("help,h", "Produce this help message")
       ("splash-screen,s", po::value<std::string>(), "A custom splash-screen image to display")
       ("help-file", po::value<std::string>(), "A custom html file to show as the help screen")
@@ -146,7 +147,8 @@ bool VisualizerApp::init( int argc, char** argv )
       ("verbose,v", "Enable debug visualizations")
       ("log-level-debug", "Sets the ROS logger level to debug.")
       ("dump-images", "On every screen render dump a jpg of contents.")
-      ("dump-folder",po::value<std::string>(), "Sets the folder for dumped images.");
+      ("dump-folder",po::value<std::string>()->default_value("dump"), "Sets the folder for dumped images.")
+      ("dump-scale",po::value<int>()->default_value(1), "Scale of dumped images.  3 would be 3*x by 3*y.");
     po::variables_map vm;
     std::string display_config, fixed_frame, splash_path, help_path, dump_folder;
     bool enable_ogre_log = false;
@@ -155,19 +157,21 @@ bool VisualizerApp::init( int argc, char** argv )
     int force_gl_version = 0;
     bool disable_anti_aliasing = false;
     bool disable_stereo = false;
-    bool dump_images = false;
+    DumpImagesConfig* dump_images_config = NULL;
+
     try
     {
-      po::store( po::parse_command_line( argc, argv, options ), vm );
-      po::notify( vm );
+      po::store(po::parse_command_line(argc, argv, options), vm);
+      po::notify(vm);
 
-      if( vm.count( "help" ))
+      if (vm.count("help"))
       {
-        std::cout << "rviz command line options:\n" << options;
+        std::cout << "rviz command line options:\n"
+                  << options;
         return false;
       }
 
-      if( vm.count( "in-mc-wrapper" ))
+      if (vm.count("in-mc-wrapper"))
       {
         in_mc_wrapper = true;
       }
@@ -175,7 +179,7 @@ bool VisualizerApp::init( int argc, char** argv )
       if (vm.count("display-config"))
       {
         display_config = vm["display-config"].as<std::string>();
-        if (display_config.size() >= 4 && display_config.substr( display_config.size() - 4, 4 ) == ".vcg")
+        if (display_config.size() >= 4 && display_config.substr(display_config.size() - 4, 4) == ".vcg")
         {
           std::cerr << "ERROR: the config file '" << display_config << "' is a .vcg file, which is the old rviz config format." << std::endl;
           std::cerr << "       New config files have a .rviz extension and use YAML formatting.  The format changed" << std::endl;
@@ -227,50 +231,51 @@ bool VisualizerApp::init( int argc, char** argv )
 
       if (vm.count("log-level-debug"))
       {
-        if( ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug) )
+        if (ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug))
         {
           ros::console::notifyLoggerLevelsChanged();
         }
       }
 
-      if(vm.count("dump-images"))
+      if (vm.count("dump-images"))
       {
-        dump_images = true;
-      }
+        dump_images_config = new DumpImagesConfig;
+        dump_images_config->enabled = true;
+        dump_images_config->folder = vm["dump-folder"].as<std::string>();
+        dump_images_config->scale = vm["dump-scale"].as<int>();
 
-      if (vm.count("dump-folder"))
-      {
-        dump_folder = vm["dump-folder"].as<std::string>();
-      }
-      else{
-        dump_folder = "dump";
+        boost::filesystem::path dir(dump_images_config->folder.c_str());
+        if (boost::filesystem::create_directory(dir))
+        {
+          ROS_INFO("folder '%s' created for dumping images into.", dump_images_config->folder.c_str());
+        }
       }
     }
-    catch (std::exception& e)
+    catch (std::exception &e)
     {
       ROS_ERROR("Error parsing command line: %s", e.what());
       return false;
     }
 
-    if( !ros::master::check() )
+    if (!ros::master::check())
     {
-      WaitForMasterDialog* dialog = new WaitForMasterDialog;
-      if( dialog->exec() != QDialog::Accepted )
+      WaitForMasterDialog *dialog = new WaitForMasterDialog;
+      if (dialog->exec() != QDialog::Accepted)
       {
         return false;
       }
     }
 
-    nh_.reset( new ros::NodeHandle );
+    nh_.reset(new ros::NodeHandle);
 
-    if( enable_ogre_log )
+    if (enable_ogre_log)
     {
       OgreLogging::useRosLog();
     }
 
-    if ( force_gl_version )
+    if (force_gl_version)
     {
-      RenderSystem::forceGlVersion( force_gl_version );
+      RenderSystem::forceGlVersion(force_gl_version);
     }
 
     if (disable_anti_aliasing)
@@ -278,39 +283,40 @@ bool VisualizerApp::init( int argc, char** argv )
       RenderSystem::disableAntiAliasing();
     }
 
-    if ( disable_stereo )
+    if (disable_stereo)
     {
       RenderSystem::forceNoStereo();
     }
 
     frame_ = new VisualizationFrame();
-    frame_->setApp( this->app_ );
-    if( help_path != "" )
+    frame_->setApp(this->app_);
+    if (help_path != "")
     {
-      frame_->setHelpPath( QString::fromStdString( help_path ));
+      frame_->setHelpPath(QString::fromStdString(help_path));
     }
-    frame_->setShowChooseNewMaster( in_mc_wrapper );
-    if( vm.count("splash-screen") )
+    frame_->setShowChooseNewMaster(in_mc_wrapper);
+    if (vm.count("splash-screen"))
     {
-      frame_->setSplashPath( QString::fromStdString( splash_path ));
+      frame_->setSplashPath(QString::fromStdString(splash_path));
     }
-    frame_->initialize(QString::fromStdString(display_config ), dump_images);
-    if( !fixed_frame.empty() )
+    
+    frame_->initialize(QString::fromStdString(display_config), dump_images_config);
+    if (!fixed_frame.empty())
     {
-      frame_->getManager()->setFixedFrame( QString::fromStdString( fixed_frame ));
+      frame_->getManager()->setFixedFrame(QString::fromStdString(fixed_frame));
     }
 
-    frame_->getManager()->getSelectionManager()->setDebugMode( verbose );
+    frame_->getManager()->getSelectionManager()->setDebugMode(verbose);
 
     frame_->show();
 
     ros::NodeHandle private_nh("~");
     reload_shaders_service_ = private_nh.advertiseService("reload_shaders", reloadShaders);
 
-    ROS_INFO("%s","RavenOps v0.0.1");
+    ROS_INFO("%s", "RavenOps v0.0.1");
 #if CATCH_EXCEPTIONS
   }
-  catch (std::exception& e)
+  catch (std::exception &e)
   {
     ROS_ERROR("Caught exception while loading: %s", e.what());
     return false;
@@ -327,19 +333,19 @@ VisualizerApp::~VisualizerApp()
 
 void VisualizerApp::startContinueChecker()
 {
-  continue_timer_ = new QTimer( this );
-  connect( continue_timer_, SIGNAL( timeout() ), this, SLOT( checkContinue() ));
-  continue_timer_->start( 100 );
+  continue_timer_ = new QTimer(this);
+  connect(continue_timer_, SIGNAL(timeout()), this, SLOT(checkContinue()));
+  continue_timer_->start(100);
 }
 
 void VisualizerApp::checkContinue()
 {
-  if( !ros::ok() )
+  if (!ros::ok())
   {
-    if( frame_ )
+    if (frame_)
     {
       // Make sure the window doesn't ask if we want to save first.
-      frame_->setWindowModified( false );
+      frame_->setWindowModified(false);
     }
     QApplication::closeAllWindows();
   }

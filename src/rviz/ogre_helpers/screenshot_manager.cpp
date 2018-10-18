@@ -4,125 +4,121 @@
 #include <ros/console.h>
 namespace rviz
 {
-ScreenshotManager::ScreenshotManager(Ogre::Root* pRoot, RenderPanel* pRenderPanel, int gridSize, Ogre::String fileExtension, bool overlayFlag)
+ScreenshotManager::ScreenshotManager(Ogre::Root *root, RenderPanel *render_panel, int grid_size, Ogre::String folder, Ogre::String file_extension)
 {
-    root = pRoot;
-    //set file extension for the Screenshot files
-    mFileExtension = fileExtension;
-    // the gridsize
-    mGridSize = gridSize;
-    // flag for overlay rendering
-    mDisableOverlays = overlayFlag;
-    //get current window size
-    renderPanel = pRenderPanel;    
-}  
+    root_ = root;
+    folder_ = folder;
+    file_extension_ = file_extension;
+    grid_size_ = grid_size;
+    render_panel_ = render_panel;
+}
 
-ScreenshotManager::~ScreenshotManager() 
-{ 
-    delete[] mData;
+ScreenshotManager::~ScreenshotManager()
+{
+    delete[] data_;
 }
 
 /* Creates a screenshot with the given camera.
 * @param camera Pointer to the camera "looking at" the scene of interest
 * @param fileName the filename of the screenshot file.
 */
-void ScreenshotManager::makeScreenshot(Ogre::Camera *camera, Ogre::String fileName, Ogre::ColourValue bgColor, unsigned int width, unsigned int height)
+void ScreenshotManager::makeScreenshot(Ogre::Camera *camera, Ogre::String file_name, Ogre::ColourValue bg_color, unsigned int width, unsigned int height)
 {
-    if(width != mWindowWidth || height != mWindowHeight){
-        mWindowWidth = width;
-        mWindowHeight = height;
+    if (window_width_ != width || window_height_ != height)
+    {
+        window_width_ = width;
+        window_height_ = height;
 
-        ROS_INFO("Resolution changes, updating screenshot manager %dx%d",width,height);
-        mTempTex.setNull();
-        mTempTex =  Ogre::TextureManager::getSingleton().createManual("ScreenShotTex",
-                                                           Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME, Ogre::TEX_TYPE_2D,
-                                                           mWindowWidth, mWindowHeight, 0, Ogre::PF_B8G8R8, Ogre::TU_RENDERTARGET);
+        ROS_INFO("Resolution changes, updating screenshot manager %dx%d", width, height);
+        temp_tex_.setNull();
+        temp_tex_ = Ogre::TextureManager::getSingleton().createManual("ScreenShotTex",
+                                                                      Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME, Ogre::TEX_TYPE_2D,
+                                                                      window_width_, window_height_, 0, Ogre::PF_B8G8R8, Ogre::TU_RENDERTARGET);
 
         //get The current Render Target of the temp Texture
-        mRT = mTempTex->getBuffer()->getRenderTarget();
+        rt_ = temp_tex_->getBuffer()->getRenderTarget();
 
         //HardwarePixelBufferSharedPtr to the Buffer of the temp Texture
-        mBuffer = mTempTex->getBuffer();
+        buffer_ = temp_tex_->getBuffer();
 
         //create PixelBox
-        mData = new Ogre::uint8[(mWindowWidth * mGridSize) * (mWindowHeight * mGridSize) * 3];
-        mFinalPicturePB = Ogre::PixelBox(mWindowWidth * mGridSize, mWindowHeight * mGridSize, 1, Ogre::PF_B8G8R8, mData);
+        data_ = new Ogre::uint8[(window_width_ * grid_size_) * (window_height_ * grid_size_) * 3];
+        final_picture_pb_ = Ogre::PixelBox(window_width_ * grid_size_, window_height_ * grid_size_, 1, Ogre::PF_B8G8R8, data_);
     }
 
     //Remove all viewports, so the added Viewport(camera) ist the only
-    mRT->removeAllViewports();
-    mRT->addViewport(camera);
+    rt_->removeAllViewports();
+    rt_->addViewport(camera);
 
     //set the viewport settings
-    Ogre::Viewport *vp = mRT->getViewport(0);
+    Ogre::Viewport *vp = rt_->getViewport(0);
     vp->setClearEveryFrame(true);
-    vp->setOverlaysEnabled(false);
-    vp->setBackgroundColour(bgColor);
+    vp->setBackgroundColour(bg_color);
 
-    if (mGridSize <= 1)
+    Ogre::String full_path = folder_ + "/" + file_name + "." + file_extension_;
+    if (grid_size_ <= 1)
     {
         // Simple case where the contents of the screen are taken directly
         // Also used when an invalid value is passed within gridSize (zero or negative grid size)
-        mRT->update(); //render
+        rt_->update(); //render
 
         //write the file on the Harddisk
-        mRT->writeContentsToFile(fileName + "." + mFileExtension);
+        rt_->writeContentsToFile(full_path);
     }
     else
     {
         //define the original frustum extents variables
-        Ogre::Real originalFrustumLeft, originalFrustumRight, originalFrustumTop, originalFrustumBottom;
+        Ogre::Real original_frustum_left, original_frustum_right, original_frustum_top, original_frustum_bottom;
         // set the original Frustum extents
-        camera->getFrustumExtents(originalFrustumLeft, originalFrustumRight, originalFrustumTop, originalFrustumBottom);
+        camera->getFrustumExtents(original_frustum_left, original_frustum_right, original_frustum_top, original_frustum_bottom);
 
         // compute the Stepsize for the drid
-        Ogre::Real frustumGridStepHorizontal = (originalFrustumRight * 2) / mGridSize;
-        Ogre::Real frustumGridStepVertical = (originalFrustumTop * 2) / mGridSize;
+        Ogre::Real frustum_grid_step_horizontal = (original_frustum_right * 2) / grid_size_;
+        Ogre::Real frustum_grid_step_vertical = (original_frustum_top * 2) / grid_size_;
 
         // process each grid
-        Ogre::Real frustumLeft, frustumRight, frustumTop, frustumBottom;
-        for (unsigned int nbScreenshots = 0; nbScreenshots < mGridSize * mGridSize; nbScreenshots++)
+        Ogre::Real frustum_left, frustum_right, frustum_top, frustum_bottom;
+        for (unsigned int screenshots_count = 0; screenshots_count < (grid_size_ * grid_size_); screenshots_count++)
         {
-            int y = nbScreenshots / mGridSize;
-            int x = nbScreenshots - y * mGridSize;
+            int y = screenshots_count / grid_size_;
+            int x = screenshots_count - y * grid_size_;
 
             // Shoggoth frustum extents setting
             // compute the new frustum extents
-            frustumLeft = originalFrustumLeft + frustumGridStepHorizontal * x;
-            frustumRight = frustumLeft + frustumGridStepHorizontal;
-            frustumTop = originalFrustumTop - frustumGridStepVertical * y;
-            frustumBottom = frustumTop - frustumGridStepVertical;
+            frustum_left = original_frustum_left + frustum_grid_step_horizontal * x;
+            frustum_right = frustum_left + frustum_grid_step_horizontal;
+            frustum_top = original_frustum_top - frustum_grid_step_vertical * y;
+            frustum_bottom = frustum_top - frustum_grid_step_vertical;
 
             // set the frustum extents value to the camera
-            camera->setFrustumExtents(frustumLeft, frustumRight, frustumTop, frustumBottom);
+            camera->setFrustumExtents(frustum_left, frustum_right, frustum_top, frustum_bottom);
 
             // ignore time duration between frames
-            root->clearEventTimes();
-            mRT->update(); //render
+            root_->clearEventTimes();
+            rt_->update(); //render
 
             //define the current
-            Ogre::Box subBox = Ogre::Box(x * mWindowWidth, y * mWindowHeight, x * mWindowWidth + mWindowWidth, y * mWindowHeight + mWindowHeight);
+            Ogre::Box sub_box = Ogre::Box(x * window_width_, y * window_height_, x * window_width_ + window_width_, y * window_height_ + window_height_);
             //copy the content from the temp buffer into the final picture PixelBox
             //Place the tempBuffer content at the right position
-            mBuffer->blitToMemory(mFinalPicturePB.getSubVolume(subBox));
+            buffer_->blitToMemory(final_picture_pb_.getSubVolume(sub_box));
         }
 
         // set frustum extents to previous settings
         camera->resetFrustumExtents();
 
-        Ogre::Image finalImage; //declare the final Image Object
+        Ogre::Image final_image; //declare the final Image Object
         //insert the PixelBox data into the Image Object
-        finalImage = finalImage.loadDynamicImage(static_cast<unsigned char *>(mFinalPicturePB.data), mFinalPicturePB.getWidth(), mFinalPicturePB.getHeight(), Ogre::PF_B8G8R8);
+        final_image = final_image.loadDynamicImage(
+            static_cast<unsigned char *>(final_picture_pb_.data),
+            final_picture_pb_.getWidth(),
+            final_picture_pb_.getHeight(),
+            Ogre::PF_B8G8R8);
         // Save the Final image to a file
-        finalImage.save(fileName + "." + mFileExtension);
-    }
-
-    // do we have to re-enable our overlays?
-    if (mDisableOverlays){
-        // myApplication::getSingletonPtr()->getDefaultViewport()->setOverlaysEnabled(true);
+        final_image.save(full_path);
     }
 
     // reset time since last frame to pause the scene
-    root->clearEventTimes();
+    root_->clearEventTimes();
 }
 } // namespace rviz

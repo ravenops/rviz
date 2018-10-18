@@ -137,7 +137,7 @@ VisualizationFrame::VisualizationFrame( QWidget* parent )
 
   package_path_ = ros::package::getPath("rviz");
   help_path_ = QString::fromStdString( (fs::path(package_path_) / "help/help.html").BOOST_FILE_STRING() );
-  splash_path_ = QString::fromStdString( (fs::path(package_path_) / "images/splash.png").BOOST_FILE_STRING() );
+  splash_path_ = QString::fromStdString( (fs::path(package_path_) / "images/rvn_splash.png").BOOST_FILE_STRING() );
 
   QToolButton* reset_button = new QToolButton( );
   reset_button->setText( "Reset" );
@@ -155,7 +155,7 @@ VisualizationFrame::VisualizationFrame( QWidget* parent )
   statusBar()->addPermanentWidget( fps_label_, 0 );
   original_status_bar_ = statusBar();
 
-  setWindowTitle( "RViz[*]" );
+  setWindowTitle( "RavenOps RViz[*]" );
 }
 
 VisualizationFrame::~VisualizationFrame()
@@ -245,7 +245,7 @@ void VisualizationFrame::setSplashPath( const QString& splash_path )
   splash_path_ = splash_path;
 }
 
-void VisualizationFrame::initialize(const QString& display_config_file,bool shouldDumpFrames)
+void VisualizationFrame::initialize(const QString& display_config_file, DumpImagesConfig* dump_images_config)
 {
   initConfigs();
 
@@ -327,7 +327,7 @@ void VisualizationFrame::initialize(const QString& display_config_file,bool shou
   // Periodically process events for the splash screen.
   if (app_) app_->processEvents();
 
-  manager_ = new VisualizationManager(render_panel_,shouldDumpFrames, this );
+  manager_ = new VisualizationManager(render_panel_,dump_images_config, this );
   manager_->setHelpPath( help_path_ );
 
   // Periodically process events for the splash screen.
@@ -754,13 +754,14 @@ void VisualizationFrame::setDisplayConfigFile( const std::string& path )
   std::string title;
   if( path == default_display_config_file_ )
   {
-    title = "RViz[*]";
+    title = "RavenOps RViz[*]";
   }
   else
   {
     title = fs::path( path ).BOOST_FILENAME_STRING() + "[*] - RViz";
   }
   setWindowTitle( QString::fromStdString( title ));
+  setStyleSheet("background-color:#374148;color:white;");
 }
 
 bool VisualizationFrame::saveDisplayConfig( const QString& path )
@@ -1185,7 +1186,7 @@ void VisualizationFrame::onHelpWiki()
 void VisualizationFrame::onHelpAbout()
 {
   QString about_text = QString(
-    "This is RViz version %1 (%2).\n"
+    "This is RavenOps RViz version %1 (%2).\n"
     "\n"
     "Compiled against Qt version %3."
     "\n"

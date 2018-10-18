@@ -118,7 +118,7 @@ public:
   boost::mutex render_mutex_;
 };
 
-VisualizationManager::VisualizationManager(RenderPanel* render_panel,bool shouldDumpFrames, WindowManagerInterface* wm, boost::shared_ptr<tf::TransformListener> tf )
+VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesConfig* dump_images_config, WindowManagerInterface* wm, boost::shared_ptr<tf::TransformListener> tf )
 : ogre_root_( Ogre::Root::getSingletonPtr() )
 , update_timer_(0)
 , shutting_down_(false)
@@ -202,7 +202,11 @@ VisualizationManager::VisualizationManager(RenderPanel* render_panel,bool should
   ogre_render_queue_clearer_ = new OgreRenderQueueClearer();
   Ogre::Root::getSingletonPtr()->addFrameListener( ogre_render_queue_clearer_ );
  
-  screenshot_manager_ = new ScreenshotManager(ogre_root_, render_panel_, 1, "jpg", false);
+  if(dump_images_config != NULL && dump_images_config->enabled){
+    screenshot_manager_ = new ScreenshotManager(ogre_root_, render_panel_, dump_images_config->scale,dump_images_config->folder,"jpg");
+  }else{
+    screenshot_manager_ = NULL;
+  }
   
   update_timer_ = new QTimer;
   connect( update_timer_, SIGNAL( timeout() ), this, SLOT( onUpdate() ));
@@ -375,18 +379,18 @@ void VisualizationManager::onUpdate()
     boost::mutex::scoped_lock lock(private_->render_mutex_);
     ogre_root_->renderOneFrame();
 
-    if (cam != NULL){
-      Ogre::String s = (boost::format("dump/visman_%06d") % frame_count_).str();
+    if (screenshot_manager_ != NULL && cam != NULL){
+      Ogre::String s = (boost::format("%08d") % frame_count_).str();
       unsigned int w = render_panel_->width();
       unsigned int h = render_panel_->height();
-      Ogre::ColourValue bgColor = render_panel_->getViewport()->getBackgroundColour();
-      screenshot_manager_->makeScreenshot(cam,s,bgColor,w,h);
+      Ogre::ColourValue bg_color = render_panel_->getViewport()->getBackgroundColour();
+      screenshot_manager_->makeScreenshot(cam,s,bg_color,w,h);
       ROS_INFO(
         "%s %x%x%x %dx%d", 
         s.c_str(),
-        int(bgColor.r*255), 
-        int(bgColor.g*255), 
-        int(bgColor.b*255), 
+        int(bg_color.r*255), 
+        int(bg_color.g*255), 
+        int(bg_color.b*255), 
         render_panel_->width(), 
         render_panel_->height()
       ); 

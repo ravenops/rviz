@@ -38,6 +38,7 @@
 #include "rviz/bit_allocator.h"
 #include "rviz/config.h"
 #include "rviz/display_context.h"
+#include "rviz/dump_images_config.h"
 
 class QKeyEvent;
 class QTimer;
@@ -110,7 +111,7 @@ public:
    *        VisualizationFrame, the top-level container widget of rviz).
    * @param tf a pointer to tf::TransformListener which will be internally used by FrameManager.
    */
-  VisualizationManager(RenderPanel* render_panel,bool shouldDumpFrames=false, WindowManagerInterface* wm = 0, boost::shared_ptr<tf::TransformListener> tf = boost::shared_ptr<tf::TransformListener>() );
+  VisualizationManager(RenderPanel* render_panel,DumpImagesConfig* dump_images_config = NULL, WindowManagerInterface* wm = NULL, boost::shared_ptr<tf::TransformListener> tf = boost::shared_ptr<tf::TransformListener>() );
 
   /**
    * \brief Destructor
