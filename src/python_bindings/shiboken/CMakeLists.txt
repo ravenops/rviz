@@ -72,7 +72,7 @@ if(shiboken_helper_FOUND)
     )
 
     shiboken_generator(
-      librviz
+      librvn_rviz
       global.h
       typesystem.xml
       ${PROJECT_SOURCE_DIR}/src/python_bindings/shiboken

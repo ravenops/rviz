@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.11.2)
-project(rviz)
+project(rvn_rviz)
 
 if (POLICY CMP0042)
   cmake_policy(SET CMP0042 NEW)
@@ -185,7 +185,7 @@ catkin_package(
     ${OGRE_OV_INCLUDE_DIRS}
     ${OPENGL_INCLUDE_DIR}
   LIBRARIES
-    rviz
+    rvn_rviz
     ${OGRE_OV_LIBRARIES_ABS}
     ${rviz_ADDITIONAL_LIBRARIES}
     ${OPENGL_LIBRARIES}

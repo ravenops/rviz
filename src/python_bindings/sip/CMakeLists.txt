@@ -54,7 +54,7 @@ if(sip_helper_FOUND)
     LIBRARY_DIR ${CATKIN_DEVEL_PREFIX}/${PYTHON_INSTALL_DIR}/rviz
     BINARY_DIR ${CATKIN_DEVEL_PREFIX}/bin
     DEPENDS ${rviz_sip_DEPENDENT_FILES}
-    DEPENDENCIES rviz
+    DEPENDENCIES rvn_rviz
   )
   if(APPLE)
     set(rviz_sip_LIBRARY_FILE librviz_sip.so)
