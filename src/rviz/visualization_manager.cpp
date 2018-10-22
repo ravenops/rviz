@@ -30,7 +30,7 @@
 #include <algorithm>
 
 #include <QApplication>
-#include <QCursor> 
+#include <QCursor>
 #include <QPixmap>
 #include <QTimer>
 #if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
@@ -38,6 +38,7 @@
 #endif
 
 #include <boost/bind.hpp>
+#include <boost/format.hpp>
 
 #include <OgreRoot.h>
 #include <OgreSceneManager.h>
@@ -201,13 +202,13 @@ VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesC
 
   ogre_render_queue_clearer_ = new OgreRenderQueueClearer();
   Ogre::Root::getSingletonPtr()->addFrameListener( ogre_render_queue_clearer_ );
- 
+
   if(dump_images_config != NULL && dump_images_config->enabled){
     screenshot_manager_ = new ScreenshotManager(ogre_root_, render_panel_, dump_images_config->scale,dump_images_config->folder,"jpg");
   }else{
     screenshot_manager_ = NULL;
   }
-  
+
   update_timer_ = new QTimer;
   connect( update_timer_, SIGNAL( timeout() ), this, SLOT( onUpdate() ));
 }
@@ -386,14 +387,14 @@ void VisualizationManager::onUpdate()
       Ogre::ColourValue bg_color = render_panel_->getViewport()->getBackgroundColour();
       screenshot_manager_->makeScreenshot(cam,s,bg_color,w,h);
       ROS_INFO(
-        "%s %x%x%x %dx%d", 
+        "%s %x%x%x %dx%d",
         s.c_str(),
-        int(bg_color.r*255), 
-        int(bg_color.g*255), 
-        int(bg_color.b*255), 
-        render_panel_->width(), 
+        int(bg_color.r*255),
+        int(bg_color.g*255),
+        int(bg_color.b*255),
+        render_panel_->width(),
         render_panel_->height()
-      ); 
+      );
     }
   }
 }
