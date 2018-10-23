@@ -31,7 +31,7 @@ catkin_add_gtest(property_test
   mock_property_change_receiver.cpp
   ${MOC_MOCK_PROPERTY_CHANGE_RECEIVER}
 )
-target_link_libraries(property_test rvn_rviz ${catkin_LIBRARIES} ${QT_LIBRARIES})
+target_link_libraries(property_test rviz ${catkin_LIBRARIES} ${QT_LIBRARIES})
 
 # TODO(wjwwood): Fix this test, it used to use a set of Mock classes, but
 #                has since undergone a lot of changes and it no longer works.
@@ -46,7 +46,7 @@ target_link_libraries(property_test rvn_rviz ${catkin_LIBRARIES} ${QT_LIBRARIES}
 #   ${MOC_MOCK_DISPLAY}
 #   ${MOC_MOCK_PROPERTY_CHANGE_RECEIVER}
 # )
-# target_link_libraries(display_test rvn_rviz ${catkin_LIBRARIES} ${QT_LIBRARIES})
+# target_link_libraries(display_test rviz ${catkin_LIBRARIES} ${QT_LIBRARIES})
 
 # This is a GTest which tests the uniform_string_stream.
 catkin_add_gtest(uniform_string_stream_test
@@ -115,7 +115,7 @@ add_executable(render_panel_test render_panel_test.cpp)
 if(NOT WIN32)
   set_target_properties(render_panel_test PROPERTIES COMPILE_FLAGS "-std=c++11")
 endif()
-target_link_libraries(render_panel_test rvn_rviz ${catkin_LIBRARIES} ${QT_LIBRARIES})
+target_link_libraries(render_panel_test rviz ${catkin_LIBRARIES} ${QT_LIBRARIES})
 add_dependencies(tests render_panel_test)
 
 # This is an executable which uses the rviz new display diaglog interface.
@@ -123,7 +123,7 @@ add_executable(new_display_dialog_test new_display_dialog_test.cpp)
 if(NOT WIN32)
   set_target_properties(new_display_dialog_test PROPERTIES COMPILE_FLAGS "-std=c++11")
 endif()
-target_link_libraries(new_display_dialog_test rvn_rviz ${catkin_LIBRARIES} ${QT_LIBRARIES})
+target_link_libraries(new_display_dialog_test rviz ${catkin_LIBRARIES} ${QT_LIBRARIES})
 add_dependencies(tests new_display_dialog_test)
 
 # This is an executable which uses the rviz color editor test.
@@ -131,7 +131,7 @@ add_executable(color_editor_test color_editor_test.cpp)
 if(NOT WIN32)
   set_target_properties(color_editor_test PROPERTIES COMPILE_FLAGS "-std=c++11")
 endif()
-target_link_libraries(color_editor_test rvn_rviz ${catkin_LIBRARIES} ${QT_LIBRARIES})
+target_link_libraries(color_editor_test rviz ${catkin_LIBRARIES} ${QT_LIBRARIES})
 add_dependencies(tests color_editor_test)
 
 # This is a modified version of the property test.
@@ -141,7 +141,7 @@ catkin_add_gtest(property_with_ros_spinner_test
   mock_property_change_receiver.cpp
   ${MOC_MOCK_PROPERTY_CHANGE_RECEIVER}
 )
-target_link_libraries(property_with_ros_spinner_test rvn_rviz ${catkin_LIBRARIES} ${QT_LIBRARIES})
+target_link_libraries(property_with_ros_spinner_test rviz ${catkin_LIBRARIES} ${QT_LIBRARIES})
 add_dependencies(tests property_with_ros_spinner_test)
 
 # This is an executable that uses the line_edit_with_button property interface.
@@ -149,7 +149,7 @@ add_executable(line_edit_with_button_test line_edit_with_button_test.cpp)
 if(NOT WIN32)
   set_target_properties(line_edit_with_button_test PROPERTIES COMPILE_FLAGS "-std=c++11")
 endif()
-target_link_libraries(line_edit_with_button_test rvn_rviz ${catkin_LIBRARIES} ${QT_LIBRARIES})
+target_link_libraries(line_edit_with_button_test rviz ${catkin_LIBRARIES} ${QT_LIBRARIES})
 add_dependencies(tests line_edit_with_button_test)
 
 # This is an executable which tests the connect/disconnect behavior of signals and slots in Qt.
@@ -172,7 +172,7 @@ add_executable(render_points_test
 if(NOT WIN32)
   set_target_properties(render_points_test PROPERTIES COMPILE_FLAGS "-std=c++11")
 endif()
-target_link_libraries(render_points_test rvn_rviz ${catkin_LIBRARIES} ${QT_LIBRARIES})
+target_link_libraries(render_points_test rviz ${catkin_LIBRARIES} ${QT_LIBRARIES})
 add_dependencies(tests render_points_test)
 
 # This is an example application which creates two ogre render windows.
@@ -180,7 +180,7 @@ add_executable(two_render_widgets two_render_widgets.cpp)
 if(NOT WIN32)
   set_target_properties(two_render_widgets PROPERTIES COMPILE_FLAGS "-std=c++11")
 endif()
-target_link_libraries(two_render_widgets rvn_rviz ${catkin_LIBRARIES} ${QT_LIBRARIES})
+target_link_libraries(two_render_widgets rviz ${catkin_LIBRARIES} ${QT_LIBRARIES})
 add_dependencies(tests two_render_widgets)
 
 # This is a GTest which tests the STL loader
