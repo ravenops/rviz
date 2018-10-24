@@ -33,6 +33,8 @@
 
 #include <deque>
 
+#include <QPixmap>
+
 #include <ros/time.h>
 
 #include "rviz/bit_allocator.h"
@@ -82,8 +84,6 @@ class WindowManagerInterface;
 class Tool;
 class OgreRenderQueueClearer;
 class VisualizationManagerPrivate;
-
-class ScreenshotManager;
 
 /**
  * \brief The VisualizationManager class is the central manager class
@@ -396,7 +396,9 @@ protected:
 
   OgreRenderQueueClearer* ogre_render_queue_clearer_;
 
-  ScreenshotManager* screenshot_manager_;
+  // ScreenshotManager* screenshot_manager_;
+  QPixmap screenshot_;
+  DumpImagesConfig* dump_images_config_;
 
 private Q_SLOTS:
   void updateFixedFrame();

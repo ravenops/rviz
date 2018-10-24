@@ -33,6 +33,9 @@
 #include <QCursor>
 #include <QPixmap>
 #include <QTimer>
+#include <QImageWriter>
+#include <QMessageBox>
+
 #if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
 #include <QWindow>
 #endif
@@ -202,12 +205,8 @@ VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesC
 
   ogre_render_queue_clearer_ = new OgreRenderQueueClearer();
   Ogre::Root::getSingletonPtr()->addFrameListener( ogre_render_queue_clearer_ );
-
-  if(dump_images_config != NULL && dump_images_config->enabled){
-    screenshot_manager_ = new ScreenshotManager(ogre_root_, render_panel_, dump_images_config->scale,dump_images_config->folder,"jpg");
-  }else{
-    screenshot_manager_ = NULL;
-  }
+  
+  dump_images_config_ = dump_images_config;
 
   update_timer_ = new QTimer;
   connect( update_timer_, SIGNAL( timeout() ), this, SLOT( onUpdate() ));
@@ -380,21 +379,37 @@ void VisualizationManager::onUpdate()
     boost::mutex::scoped_lock lock(private_->render_mutex_);
     ogre_root_->renderOneFrame();
 
-    if (screenshot_manager_ != NULL && cam != NULL){
-      Ogre::String s = (boost::format("%08d") % frame_count_).str();
-      unsigned int w = render_panel_->width();
-      unsigned int h = render_panel_->height();
-      Ogre::ColourValue bg_color = render_panel_->getViewport()->getBackgroundColour();
-      screenshot_manager_->makeScreenshot(cam,s,bg_color,w,h);
-      ROS_INFO(
-        "%s %x%x%x %dx%d",
-        s.c_str(),
-        int(bg_color.r*255),
-        int(bg_color.g*255),
-        int(bg_color.b*255),
-        render_panel_->width(),
-        render_panel_->height()
-      );
+    if(dump_images_config_ != NULL && cam != NULL && dump_images_config_->enabled){
+      screenshot_ = QPixmap::grabWindow(window_manager_->getParentWindow()->winId() );
+      QString filename;
+      filename.sprintf("%s/%08d.jpg", dump_images_config_->folder.c_str(), uint(frame_count_));
+
+      QImageWriter writer( filename );
+      if( !writer.write( screenshot_.toImage() ))
+      {
+        QString error_message;
+        if( writer.error() == QImageWriter::UnsupportedFormatError )
+        {
+          QString suffix = filename.section( '.', -1 );
+          QString formats_string;
+          QList<QByteArray> formats = QImageWriter::supportedImageFormats();
+          formats_string = formats[0];
+          for( int i = 1; i < formats.size(); i++ )
+          {
+            formats_string += ", " + formats[ i ];
+          }
+
+          error_message =
+            "File type '" + suffix + "' is not supported.\n" +
+            "Supported image formats are: " + formats_string + "\n";
+        }
+        else
+        {
+          error_message = "Failed to write image to file " + filename;
+        }
+
+        QMessageBox::critical( window_manager_->getParentWindow(), "Error", error_message );
+      }
     }
   }
 }

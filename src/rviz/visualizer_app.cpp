@@ -28,6 +28,7 @@
  */
 
 #include <QApplication>
+#include <QDir>
 #include <QTimer>
 
 #include <boost/program_options.hpp>
@@ -244,8 +245,7 @@ bool VisualizerApp::init(int argc, char **argv)
         dump_images_config->folder = vm["dump-folder"].as<std::string>();
         dump_images_config->scale = vm["dump-scale"].as<int>();
 
-        boost::filesystem::path dir(dump_images_config->folder.c_str());
-        if (boost::filesystem::create_directory(dir))
+        if(QDir().mkdir(QString::fromStdString(dump_images_config->folder)))
         {
           ROS_INFO("folder '%s' created for dumping images into.", dump_images_config->folder.c_str());
         }
