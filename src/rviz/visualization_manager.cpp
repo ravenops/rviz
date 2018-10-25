@@ -84,7 +84,6 @@
 #include "rviz/load_resource.h"
 #include "rviz/ogre_helpers/ogre_render_queue_clearer.h"
 #include "rviz/ogre_helpers/render_system.h"
-#include "rviz/ogre_helpers/screenshot_manager.h"
 
 #include "rviz/visualization_manager.h"
 #include "rviz/window_manager_interface.h"

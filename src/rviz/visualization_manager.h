@@ -397,7 +397,6 @@ protected:
 
   OgreRenderQueueClearer* ogre_render_queue_clearer_;
 
-  // ScreenshotManager* screenshot_manager_;
   QScreen* screen_;
   QWindow* window_;
   DumpImagesConfig* dump_images_config_;
