@@ -148,8 +148,7 @@ bool VisualizerApp::init(int argc, char **argv)
       ("verbose,v", "Enable debug visualizations")
       ("log-level-debug", "Sets the ROS logger level to debug.")
       ("dump-images", "On every screen render dump a jpg of contents.")
-      ("dump-folder",po::value<std::string>()->default_value("dump"), "Sets the folder for dumped images.")
-      ("dump-scale",po::value<int>()->default_value(1), "Scale of dumped images.  3 would be 3*x by 3*y.");
+      ("dump-folder",po::value<std::string>()->default_value("dump"), "Sets the folder for dumped images.");
     po::variables_map vm;
     std::string display_config, fixed_frame, splash_path, help_path, dump_folder;
     bool enable_ogre_log = false;
@@ -243,7 +242,6 @@ bool VisualizerApp::init(int argc, char **argv)
         dump_images_config = new DumpImagesConfig;
         dump_images_config->enabled = true;
         dump_images_config->folder = vm["dump-folder"].as<std::string>();
-        dump_images_config->scale = vm["dump-scale"].as<int>();
 
         if(QDir().mkdir(QString::fromStdString(dump_images_config->folder)))
         {

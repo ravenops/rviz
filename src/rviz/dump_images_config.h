@@ -11,7 +11,6 @@ namespace rviz
 struct DumpImagesConfig {
   bool enabled;
   std::string folder;
-  int scale;
 };
 
 } // namespace rviz
