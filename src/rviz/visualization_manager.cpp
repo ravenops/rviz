@@ -207,6 +207,10 @@ VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesC
   Ogre::Root::getSingletonPtr()->addFrameListener( ogre_render_queue_clearer_ );
   
   dump_images_config_ = dump_images_config;
+  screen_ = QGuiApplication::primaryScreen();
+  window_ = window_manager_->getParentWindow()->windowHandle();
+  if (window_)
+    screen_ = window_->screen();
 
   update_timer_ = new QTimer;
   connect( update_timer_, SIGNAL( timeout() ), this, SLOT( onUpdate() ));
@@ -379,8 +383,8 @@ void VisualizationManager::onUpdate()
     boost::mutex::scoped_lock lock(private_->render_mutex_);
     ogre_root_->renderOneFrame();
 
-    if(dump_images_config_ != NULL && cam != NULL && dump_images_config_->enabled){
-      screenshot_ = QPixmap::grabWindow(window_manager_->getParentWindow()->winId() );
+    if(dump_images_config_ != NULL && cam != NULL &&  screen_ != NULL && dump_images_config_->enabled){
+      QPixmap screenshot_ = screen_->grabWindow( window_->winId() );
       QString filename;
       filename.sprintf("%s/%08d.jpg", dump_images_config_->folder.c_str(), uint(frame_count_));
 
@@ -391,7 +395,7 @@ void VisualizationManager::onUpdate()
         if( writer.error() == QImageWriter::UnsupportedFormatError )
         {
           QString suffix = filename.section( '.', -1 );
-          QString formats_string;
+          QString formats_string; 
           QList<QByteArray> formats = QImageWriter::supportedImageFormats();
           formats_string = formats[0];
           for( int i = 1; i < formats.size(); i++ )

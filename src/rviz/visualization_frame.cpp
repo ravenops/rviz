@@ -822,18 +822,19 @@ void VisualizationFrame::loadWindowGeometry( const Config& config )
     restoreState( QByteArray::fromHex( qPrintable( main_window_config )));
   }
 
-  // load panel dock widget states (collapsed or not)
-  QList<PanelDockWidget *> dock_widgets = findChildren<PanelDockWidget *>();
+    // load panel dock widget states (collapsed or not)
+    QList<PanelDockWidget *> dock_widgets = findChildren<PanelDockWidget *>();
 
-  for ( QList<PanelDockWidget *>::iterator it=dock_widgets.begin(); it!=dock_widgets.end(); it++ )
-  {
-    Config itConfig = config.mapGetChild((*it)->windowTitle());
-
-    if (itConfig.isValid())
+    for ( QList<PanelDockWidget *>::iterator it=dock_widgets.begin(); it!=dock_widgets.end(); it++ )
     {
-      (*it)->load(itConfig);
+      PanelDockWidget* w = *it;
+      Config itConfig = config.mapGetChild(w->windowTitle());
+
+      if (itConfig.isValid())
+      {
+        w->load(itConfig);
+      }
     }
-  }
 
   bool b;
   config.mapGetBool( "Hide Left Dock", &b );

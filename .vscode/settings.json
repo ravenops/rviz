@@ -1,5 +1,6 @@
 {
     "files.associations": {
+        "*.sql": "sql",
         "cctype": "cpp",
         "cmath": "cpp",
         "cstdarg": "cpp",
@@ -50,6 +51,8 @@
         "typeindex": "cpp",
         "typeinfo": "cpp",
         "utility": "cpp",
-        "string": "cpp"
+        "string": "cpp",
+        "qmessagebox": "cpp",
+        "qpixmap": "cpp"
     }
 }

@@ -33,7 +33,8 @@
 
 #include <deque>
 
-#include <QPixmap>
+#include <QScreen>
+#include <QWindow>
 
 #include <ros/time.h>
 
@@ -397,7 +398,8 @@ protected:
   OgreRenderQueueClearer* ogre_render_queue_clearer_;
 
   // ScreenshotManager* screenshot_manager_;
-  QPixmap screenshot_;
+  QScreen* screen_;
+  QWindow* window_;
   DumpImagesConfig* dump_images_config_;
 
 private Q_SLOTS:
