@@ -183,6 +183,9 @@ void VisualizationFrame::setStatus( const QString & message )
 
 void VisualizationFrame::updateFps()
 {
+  if (dump_images_config_ != NULL && dump_images_config_->enabled )
+    return;  //Don't update FPS, breaks trimming of dump
+
   frame_count_ ++;
   ros::WallDuration wall_diff = ros::WallTime::now() - last_fps_calc_time_;
 
@@ -248,6 +251,7 @@ void VisualizationFrame::setSplashPath( const QString& splash_path )
 void VisualizationFrame::initialize(const QString& display_config_file, DumpImagesConfig* dump_images_config)
 {
   initConfigs();
+  dump_images_config_ = dump_images_config;
 
   loadPersistentSettings();
 

@@ -334,6 +334,8 @@ protected:
 
   PanelFactory* panel_factory_;
 
+  DumpImagesConfig* dump_images_config_;
+  
   struct PanelRecord
   {
     Panel* panel;
