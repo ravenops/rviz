@@ -311,7 +311,7 @@ bool VisualizerApp::init(int argc, char **argv)
     ros::NodeHandle private_nh("~");
     reload_shaders_service_ = private_nh.advertiseService("reload_shaders", reloadShaders);
 
-    ROS_INFO("%s", "RavenOps v0.0.1");
+    ROS_INFO("RavenOps v%s", get_version().c_str());
 #if CATCH_EXCEPTIONS
   }
   catch (std::exception &e)
