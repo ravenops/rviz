@@ -88,6 +88,8 @@
 #include "rviz/visualization_manager.h"
 #include "rviz/window_manager_interface.h"
 
+#define RVN_SERVICE_NAME "com.ravenops.rviz.LockStep"
+
 namespace rviz
 {
 
@@ -213,6 +215,30 @@ VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesC
 
   update_timer_ = new QTimer;
   connect( update_timer_, SIGNAL( timeout() ), this, SLOT( onUpdate() ));
+
+  if (dump_images_config_ != NULL && dump_images_config_->enabled) 
+  {
+    ROS_INFO("A");
+    if (!QDBusConnection::sessionBus().isConnected()) {
+      ROS_ERROR(
+        "%s\n%s\t%s", 
+        "Cannot connect to the D-Bus session bus.",
+        "To start it, run:",
+        "eval `dbus-launch --auto-syntax`"
+      );
+      exit(EXIT_FAILURE);
+    }
+    ROS_INFO("B");
+    dbus_ = new QDBusInterface(RVN_SERVICE_NAME, "/", "");
+    ROS_INFO("C");
+    if(dbus_ != NULL && !dbus_->isValid()){
+      ROS_INFO("D");
+      // QDBusReply<QString> reply = iface.call("PlayFrameWidth", argc > 1 ? argv[1] : "");
+      dbus_->call("Kill");
+      ROS_INFO("E");
+    }
+    ROS_INFO("H");
+  }
 }
 
 VisualizationManager::~VisualizationManager()
@@ -241,6 +267,11 @@ VisualizationManager::~VisualizationManager()
 
   Ogre::Root::getSingletonPtr()->removeFrameListener( ogre_render_queue_clearer_ );
   delete ogre_render_queue_clearer_;
+
+  delete dbus_;
+  delete window_;
+  delete screen_;
+  delete dump_images_config_;
 }
 
 void VisualizationManager::initialize()

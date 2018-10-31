@@ -53,6 +53,8 @@
         "utility": "cpp",
         "string": "cpp",
         "qmessagebox": "cpp",
-        "qpixmap": "cpp"
+        "qpixmap": "cpp",
+        "qtdbus": "cpp",
+        "qdbusconnection": "cpp"
     }
 }
