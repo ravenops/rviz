@@ -13,25 +13,20 @@ RVN::FIX: This has to become a ROS Package, because ROS!!!
 
 # General Python Imports
 import argparse
-import os
-import time
-import signal
-import logging as log
 from enum import Enum
 
-# ROS and RVN Imports
+# ROS Imports
 import rosbag
 import rospy
-import rvn_events.tools as tools
-import rvnbag_parts as rvnbag
 
 # D-Bus imports
 from pydbus         import SessionBus
 from gi.repository  import GLib
 from pydbus.generic import signal
 
-service_name = 'com.ravenops.rviz.LockStep'
-loop = GLib.MainLoop()
+# define the dbus name and ROS publication node names
+service_name  = 'com.ravenops.rviz.LockStep'
+ros_node_name = 'rvn_bag_play'
 
 class ExitStatus(Enum):
     OK           = 0
@@ -42,7 +37,7 @@ class ExitStatus(Enum):
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-class MessageContainer:
+class MessageContainer(object):
     """
     It is much more convenient to have a message holder class than try and untangle the 
     tupple supplied
@@ -82,14 +77,16 @@ class MessageContainer:
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-class Frame:
-    """ All the messages in a single frame -- storage struct """
+class Frame(object):
+    """ All the messages in a single frame -- storage struct. Messages are MessageContainer classes"""
 
     def __init__( self, start, end ):
         self.all_msgs   = [] # all message containers
         self.last_clock = None
         self.start      = start
         self.end        = end
+        print "have frame from {} to {}".format(self.start.to_sec(), self.end.to_sec())
+
 
     def add_msg(self, topic, raw_msg, t):
         msg_cont = MessageContainer(topic, raw_msg=raw_msg, t=t)
@@ -98,18 +95,22 @@ class Frame:
             self.last_clock = msg_cont
 
 
-
-
 # ----------------------------------------------------------------------------------------------------------------------
-class BagReader:
-    """ Responsible for loading the bag. Will yield a generator for all messages within a given time window """
+class BagReader(object):
+    """ Responsible for loading the bag."""
 
     def __init__( self, bagfile ):
         """
         :params bagfile: str --- full path to the desired ROS bagfile
         """
-        self.bag   = tools.load_bag(bagfile)
-        self.now   = rospy.Time(self.bag.get_start_time())
+        try:
+            self.bag   = rosbag.Bag(bagfile ,'r')
+        except Exception as e:
+            raise Exception("Could not open bag '{}': {}".format(bagfile,e))
+
+        self.now = rospy.Time(self.bag.get_start_time())
+        self.end = rospy.Time(self.bag.get_end_time())
+
 
     def get_the_next_frame( self, delta ):
         """
@@ -120,11 +121,16 @@ class BagReader:
         # is intended exclusively for the clips, which are short bags
         # RVN::FIX: need to be able to stop, start this... 
         frame = Frame(self.now, self.now+delta)
-        for topic, raw_msg, t in self.bag.read_messages(raw=True, start_time=frame_start, end_time=frame_end):
+        if self.end < frame.end:
+            raise Exception("you have walked off the end of the bag!")
+
+        for topic, raw_msg, t in self.bag.read_messages(raw=True, start_time=frame.start, end_time=frame.end):
             frame.add_msg(topic, raw_msg, t)
+            print "adding message of topic {} that occured at: {}".format(topic, t.to_sec())
 
         self.now = frame.end
         return frame
+
 
     def seek( self, seek_point ):
         """resets the 'now' to seek_point, abandoning the last search"""
@@ -133,10 +139,10 @@ class BagReader:
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-class PublicationControl:
+class PublicationControl(object):
     __doc__ = """
         <node>
-        <interface name='{}'>
+            <interface name='{}'>
             <method name='kill'/>
             <method name='seek'>
                 <arg type='d' name='at_time_seconds' direction='in'/>
@@ -148,22 +154,28 @@ class PublicationControl:
             <property name="current_time" type="d" access="read">
             <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>                          # RVN::FIX: Implement
             </property>
-        </interface>
+            </interface>
         </node>
     """.format(service_name)
 
-
     def __init__( self, bagfile):
 
-        self.delta           = rospy.Duration(0)
         self.terminate       = False  # RVN::NB: This is critical, as this flag is used to terminate the main loop
         self.exit_status     = ExitStatus.OK
         self._all_publishers = {}
         self._last_ros_clock_msg = None
 
+        try:
+            rospy.init_node( ros_node_name, anonymous=True )
+        except Exception as e:
+            raise Exception("Unable to start the publication node: {}".format(e))
+
+        # This publication must use simulation time!
+        rospy.set_param("use_sim_time", True)
+
         rospy.loginfo("Opening ROS bag at '{}' for reading...".format(bagfile))
         try:
-            self.bag_reader = rvnbag.BagReader( bagfile, self.delta )
+            self.bag_reader = BagReader( bagfile )
         except Exception as e:
             self._set_terminate( ExitStatus.BAD_BAG, "Unable to create BagReader: {}".format(e))
         rospy.loginfo("...Done")
@@ -203,7 +215,7 @@ class PublicationControl:
 
     def kill( self ):
         """ d-bus method to kill the player """
-       self._set_terminate( ExitStatus.OK, "recieved 'kill' d-bus signal" )
+        self._set_terminate( ExitStatus.OK, "recieved 'kill' d-bus signal" )
 
 
     def seek( self, t ):
@@ -216,17 +228,36 @@ class PublicationControl:
         """
         d-bus method to read and publish the frame over duration. 
         generates a frame over the period of duration, which is then published to the ROS graph. 
-        returns the last \clock message as seconds float
+        returns the last \clock message as seconds float. returns a -ve number if in error
         """
-        rospy.log("recieved the 'read' d-bus signal. Publishing frame of {} seconds".format(duration))
+        print "Recieved Read Command: {}".format(duration)
+
+        # ROS OK check
+        if rospy.is_shutdown():
+            print "Error: tried to read frame when ROS is shutdown!"
+            return -1.0
+
+        print "recieved the 'read' d-bus signal. Publishing frame of {} seconds".format(duration)
         frame_duration = rospy.Duration(duration)
-        frame = self.bag_reader.get_the_next_frame( frame_duration )
-        
-        for msg in frame.msgs:
+        try:
+            frame = self.bag_reader.get_the_next_frame( frame_duration )
+        except Exception as e:
+            return -1.0, str(e)
+
+
+        for msg in frame.all_msgs:
             self._publish_msg(msg)
 
-        rospy_clock = frame.last_clock.deserialize()
-        return rospy_clock.to_secs()
+        if frame.last_clock:
+            rospy_clock = frame.last_clock.deserialize()
+        else:
+            print "***** NO CLOCK"
+            return -1.0, "this frame has no /clock"
+
+        print "Frame contained {} messages, last /clock = {}".format(len(frame.all_msgs),rospy_clock)
+
+
+        return rospy_clock.to_sec(), ""
 
 
 
@@ -235,37 +266,29 @@ def main():
 
     verbose = False
     bagfile = ""
-    parser  = argparse.ArgumentParser() #RVN::FIX: usage=print_usage())
+    parser  = argparse.ArgumentParser() # RVN::FIX: usage=print_usage())
     parser.add_argument( '-b', '--bagfile', required=True, default="", help="complete bagfile path")
-    parser.add_argument( '-v', '--verbose', help="select verbose output", action='store_true')
+    # parser.add_argument( '-v', '--verbose', help="select verbose output", action='store_true')
 
     args = parser.parse_args()
     if args.bagfile: bagfile = args.bagfile
-    if args.verbose: verbose = True
+    # if args.verbose: verbose = True
 
     # We need to change the time -- ROS cannot use wall-time for this publication
     # RVN::FIX: check and confirm this is ok
-    rospy.set_param("use_sim_time", True)
 
-    # initalize this as a ROS Node
-    rospy.init_node("rvnbag_play", anonymous=True)
-
-    # get the bag reader
-    rospy.loginfo("loading bagfile '{}'".format(bagfile))
     try:
         pub = PublicationControl( bagfile )
     except Exception as e:
         rospy.logerr("{}".format(e))
         return ExitStatus.PUB_FAIL
-    rospy.loginfo("....DONE!")
 
-    # Holding Loop -- hold until publication control says terminate or ROS says shutdown
-    rospy.loginfo("Awaiting first frame d-bus msg...")
-    while not pub.terminate:
-        time.sleep(0.25)
-        if rospy.is_shutdown():
-            rospy.logwarn("ROS shutdown detected")
-            break
+    rospy.loginfo("starting d-bus service...")
+    session_bus = SessionBus()
+    loop        = GLib.MainLoop()
+    session_bus.publish( service_name, pub )
+    loop.run()
+    rospy.loginfo("...finished d-bus service")
 
     return pub.exit_status
 
@@ -273,5 +296,4 @@ def main():
 
 # ----------------------------------------------------------------------------------------------------------------------
 if __name__ == "__main__":
-    ret = main()
-    exit(ret)
+    exit( main() )
