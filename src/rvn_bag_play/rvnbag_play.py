@@ -14,6 +14,7 @@ RVN::FIX: This has to become a ROS Package, because ROS!!!
 # General Python Imports
 import argparse
 from enum import Enum
+import time
 
 # ROS Imports
 import rosbag
@@ -126,7 +127,7 @@ class BagReader(object):
 
         for topic, raw_msg, t in self.bag.read_messages(raw=True, start_time=frame.start, end_time=frame.end):
             frame.add_msg(topic, raw_msg, t)
-            print "adding message of topic {} that occured at: {}".format(topic, t.to_sec())
+            # print "adding message of topic {} that occured at: {}".format(topic, t.to_sec())
 
         self.now = frame.end
         return frame
@@ -231,6 +232,9 @@ class PublicationControl(object):
         returns the last \clock message as seconds float. returns a -ve number if in error
         """
         print "Recieved Read Command: {}".format(duration)
+        start_read = time.time()
+        out_msg   = ""
+        out_clock = -1.0
 
         # ROS OK check
         if rospy.is_shutdown():
@@ -243,21 +247,22 @@ class PublicationControl(object):
             frame = self.bag_reader.get_the_next_frame( frame_duration )
         except Exception as e:
             return -1.0, str(e)
+        print "Frame extraction took: {} sec", time.time() - start_read
 
 
         for msg in frame.all_msgs:
             self._publish_msg(msg)
 
         if frame.last_clock:
-            rospy_clock = frame.last_clock.deserialize()
-        else:
-            print "***** NO CLOCK"
-            return -1.0, "this frame has no /clock"
+            out_clock = frame.last_clock.deserialize()
+        # else:
+        #     print "***** NO CLOCK"
+        #     out_clock = -1.0
+        #     out_msg   = "this frame has no /clock"
 
-        print "Frame contained {} messages, last /clock = {}".format(len(frame.all_msgs),rospy_clock)
+        print "Frame contained {} messages, last /clock = {}".format(len(frame.all_msgs),out_clock)
 
-
-        return rospy_clock.to_sec(), ""
+        return out_clock, out_msg
 
 
 
