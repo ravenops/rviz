@@ -12,9 +12,10 @@ RVN::FIX: This has to become a ROS Package, because ROS!!!
 """
 
 # General Python Imports
-import argparse
-from enum import Enum
 import time
+import argparse
+import threading
+from enum import Enum
 
 # ROS Imports
 import rosbag
@@ -77,66 +78,202 @@ class MessageContainer(object):
             return False
 
 
+# # ----------------------------------------------------------------------------------------------------------------------
+
+# OLD FRAME
+# class Frame(object):
+#     """ All the messages in a single frame -- storage struct. Messages are MessageContainer classes"""
+
+#     def __init__( self, start, end ):
+#         self.all_msgs   = [] # all message containers
+#         self.last_clock = None
+#         self.start      = start
+#         self.end        = end
+#         print "have frame from {} to {}".format(self.start.to_sec(), self.end.to_sec())
+
+
+#     def add_msg(self, topic, raw_msg, t):
+#         msg_cont = MessageContainer(topic, raw_msg=raw_msg, t=t)
+#         self.all_msgs.append(msg_cont)
+#         if topic == "/clock":
+#             self.last_clock = msg_cont
+
+
+
 # ----------------------------------------------------------------------------------------------------------------------
-class Frame(object):
-    """ All the messages in a single frame -- storage struct. Messages are MessageContainer classes"""
+class Frame:
+    def __init__( self ):
+        self._lock = threading.Lock()
+        self._msgs = []
+        self._complete = False
 
-    def __init__( self, start, end ):
-        self.all_msgs   = [] # all message containers
-        self.last_clock = None
-        self.start      = start
-        self.end        = end
-        print "have frame from {} to {}".format(self.start.to_sec(), self.end.to_sec())
+    def add_msgs( self, msg ):
+        self._lock.acquire()
+        self._msgs.append(msg)
+        self._lock.release()
+
+    def clear( self ):
+        self._lock.acquire()
+        self._msgs = []
+        self._lock.release()
+
+    def set_complete( self ):
+        self._lock.acquire()
+        self._complete = True
+        self._lock.release()
+
+    def is_complete( self ):
+        comp = False
+        self._lock.acquire()
+        comp = self._complete
+        self._lock.release()
+        return comp
+
+    def get_next_msg( self ):
+        msg = None
+        self._lock.acquire()
+        for m in self._msgs:
+            msg = m
+            self._lock.release()
+            yield msg
 
 
-    def add_msg(self, topic, raw_msg, t):
-        msg_cont = MessageContainer(topic, raw_msg=raw_msg, t=t)
-        self.all_msgs.append(msg_cont)
-        if topic == "/clock":
-            self.last_clock = msg_cont
+
+
+# # ----------------------------------------------------------------------------------------------------------------------
+# OLD BAG READER
+#
+# class BagReader(object):
+#     """ Responsible for loading the bag."""
+
+#     def __init__( self, bagfile ):
+#         """
+#         :params bagfile: str --- full path to the desired ROS bagfile
+#         """
+#         try:
+#             self.bag   = rosbag.Bag(bagfile ,'r')
+#         except Exception as e:
+#             raise Exception("Could not open bag '{}': {}".format(bagfile,e))
+
+#         self.now = rospy.Time(self.bag.get_start_time())
+#         self.end = rospy.Time(self.bag.get_end_time())
+
+
+#     def get_the_next_frame( self, delta ):
+#         """
+#         returns the frame defined by now + delta 
+#         :params delta:   rospy.Duration -- frame duration
+#         """
+#         # RVN::TODO: Although this is a generator, it probably isn't all that efficient, but this
+#         # is intended exclusively for the clips, which are short bags
+#         # RVN::FIX: need to be able to stop, start this... 
+#         frame = Frame(self.now, self.now+delta)
+#         if self.end < frame.end:
+#             raise Exception("you have walked off the end of the bag!")
+
+#         for topic, raw_msg, t in self.bag.read_messages(raw=True, start_time=frame.start, end_time=frame.end):
+#             frame.add_msg(topic, raw_msg, t)
+#             # print "adding message of topic {} that occured at: {}".format(topic, t.to_sec())
+
+#         self.now = frame.end
+#         return frame
+
+
+#     def seek( self, seek_point ):
+#         """resets the 'now' to seek_point, abandoning the last search"""
+#         # RVN::FIX: This is in conflict with what we planned -- need to reconcile the loop break with read_messages generator
+#         self.now = seek_point
+
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-class BagReader(object):
-    """ Responsible for loading the bag."""
+class BagReader():
+    """ Responsible for loading the bag. Will yield a generator for all messages within a given time window """
+    #### RVN::FIX: This is going to have to be a seperate thread! Arrrgh, I don't understand this!!!
 
     def __init__( self, bagfile ):
         """
         :params bagfile: str --- full path to the desired ROS bagfile
-        """
-        try:
-            self.bag   = rosbag.Bag(bagfile ,'r')
-        except Exception as e:
-            raise Exception("Could not open bag '{}': {}".format(bagfile,e))
-
-        self.now = rospy.Time(self.bag.get_start_time())
-        self.end = rospy.Time(self.bag.get_end_time())
-
-
-    def get_the_next_frame( self, delta ):
-        """
-        returns the frame defined by now + delta 
         :params delta:   rospy.Duration -- frame duration
         """
+        try:
+            self.bag   = rosbag.Bag(bagfile)
+        except Exception as e:
+            raise Exception("Unable to load bagfile from path '{}': {}".format(bagfile,e))
+
+        self._reset_fields(None)
+        threading.Thread.__init__(self)
+
+
+    def _reset_fields(self,frame):
+        self._frame          = frame
+        self._read_new_frame = False
+        self._terminate      = False
+        self._frame_end      = rospy.Time(self.bag.get_end_time())
+        self._generator      = self.bag.read_messages( raw=True, start_time=seek_point, end_time=self._frame_end )
+
+
+    def _wait_for_next_frame_request( self ):
+        while not self._read_new_frame and not self._terminate:
+            time.sleep(0.01)
+
+
+    def _reached_frame_end( self, t ):
+        if t < self._frame_end:
+            return False
+        else:
+            self._read_new_frame=False
+            return True
+
+
+    def get_next_frame( self, duration, frame ):
+        """ returns the next frame, defined by duration seconds """
+        if type(duration) is float:
+            duration = rospy.Duration(duration)
+
+        self._frame_end      = self._frame_end + duration
+        self._read_new_frame = True
+        self._frame          = frame
+
+
+    def reseek( self, seek_point, frame ):
+        """ stops the current itteration and resets the read loop criteria """
+        if type(seek_point) is float:
+            seek_point = rospy.Time(seek_point)
+
+        self._init_fields( frame )
+
+
+    def kill( self ):
+        selt._terminate = True
+
+
+    def run( self ):
+        """ loop over all messages in bag. Loop start defined by 'reseek()' """
+        
         # RVN::TODO: Although this is a generator, it probably isn't all that efficient, but this
         # is intended exclusively for the clips, which are short bags
         # RVN::FIX: need to be able to stop, start this... 
-        frame = Frame(self.now, self.now+delta)
-        if self.end < frame.end:
-            raise Exception("you have walked off the end of the bag!")
+        for topic, raw_msg, t in self._generator:
 
-        for topic, raw_msg, t in self.bag.read_messages(raw=True, start_time=frame.start, end_time=frame.end):
-            frame.add_msg(topic, raw_msg, t)
-            # print "adding message of topic {} that occured at: {}".format(topic, t.to_sec())
+            if self._terminate:
+                break
 
-        self.now = frame.end
-        return frame
+            print "waiting on frame request.."
+            self._wait_for_next_frame_request()
+            
+            if self._reached_frame_end(t): 
+                self._frame.set_complete()
+                continue
+
+            print "adding msg of topic {} to frame".format(topic)
+            self._frame.add_msgs( MessageContainer(topic, raw_msg=raw_msg, t=t) )
 
 
-    def seek( self, seek_point ):
-        """resets the 'now' to seek_point, abandoning the last search"""
-        # RVN::FIX: This is in conflict with what we planned -- need to reconcile the loop break with read_messages generator
-        self.now = seek_point
+        self._frame.set_complete()        
+
+
+
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -177,6 +314,7 @@ class PublicationControl(object):
         rospy.loginfo("Opening ROS bag at '{}' for reading...".format(bagfile))
         try:
             self.bag_reader = BagReader( bagfile )
+            self.bag_reader.start()
         except Exception as e:
             self._set_terminate( ExitStatus.BAD_BAG, "Unable to create BagReader: {}".format(e))
         rospy.loginfo("...Done")
@@ -210,12 +348,17 @@ class PublicationControl(object):
         """sets termination flag, error code status and raises exception (if set)"""
         self.exit_status = code
         self.terminate   = True
+        self.bag_reader.kill()
+        self.bag_reader.join()
         if ex_str:
             raise Exception(ex_str)
 
 
+
     def kill( self ):
         """ d-bus method to kill the player """
+        self.bag_reader.kill()
+        self.bag_reader.join()
         self._set_terminate( ExitStatus.OK, "recieved 'kill' d-bus signal" )
 
 
@@ -231,7 +374,7 @@ class PublicationControl(object):
         generates a frame over the period of duration, which is then published to the ROS graph. 
         returns the last \clock message as seconds float. returns a -ve number if in error
         """
-        print "Recieved Read Command: {}".format(duration)
+        print "Recieved Read Command for frame of width: {}".format(duration)
         start_read = time.time()
         out_msg   = ""
         out_clock = -1.0
@@ -242,26 +385,19 @@ class PublicationControl(object):
             return -1.0
 
         print "recieved the 'read' d-bus signal. Publishing frame of {} seconds".format(duration)
-        frame_duration = rospy.Duration(duration)
         try:
-            frame = self.bag_reader.get_the_next_frame( frame_duration )
+            frame = self.bag_reader.get_the_next_frame( duration )
         except Exception as e:
-            return -1.0, str(e)
+            return out_clock, str(e)
         print "Frame extraction took: {} sec", time.time() - start_read
-
 
         for msg in frame.all_msgs:
             self._publish_msg(msg)
 
         if frame.last_clock:
             out_clock = frame.last_clock.deserialize()
-        # else:
-        #     print "***** NO CLOCK"
-        #     out_clock = -1.0
-        #     out_msg   = "this frame has no /clock"
-
+       
         print "Frame contained {} messages, last /clock = {}".format(len(frame.all_msgs),out_clock)
-
         return out_clock, out_msg
 
 
