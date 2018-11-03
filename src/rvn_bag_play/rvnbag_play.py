@@ -20,6 +20,7 @@ from enum import Enum
 # ROS Imports
 import rosbag
 import rospy
+from rosgraph_msgs.msg import Clock
 
 # D-Bus imports
 from pydbus         import SessionBus
@@ -83,7 +84,6 @@ class MessageContainer(object):
 # ----------------------------------------------------------------------------------------------------------------------
 class BagReader(object):
     """ Responsible for loading the bag. Will yield a generator for all messages within a given time window """
-    #### RVN::FIX: This is going to have to be a seperate thread! Arrrgh, I don't understand this!!!
 
     def __init__( self, bagfile ):
         """
@@ -111,8 +111,6 @@ class BagReader(object):
             seek_point = seek_point + self.bag.get_start_time()
             seek_point = rospy.Time(seek_point)
 
-        print "********* type(seek_point) =", type(seek_point)
-
         if rospy.Time(self.bag.get_end_time()) <= seek_point:
             return 1
 
@@ -125,8 +123,7 @@ class BagReader(object):
         """ loop over all messages in bag. Loop start defined by 'reseek()' """
         if type(duration) is float:
             duration = rospy.Duration(duration)
-        
-        frame=[]
+        frame={}
         self._frame_end = self._frame_end+duration
 
         for topic, raw_msg, t in self._generator:
@@ -134,7 +131,7 @@ class BagReader(object):
             if self._reached_frame_end(t): 
                 break
             else:
-                frame.append( MessageContainer(topic, raw_msg=raw_msg, t=t) )
+                frame[topic] = MessageContainer(topic, raw_msg=raw_msg, t=t)
 
         return frame        
 
@@ -148,7 +145,7 @@ class PublicationControl(object):
             <method name='kill'/>
             <method name='seek'>
                 <arg type='d' name='at_time_seconds' direction='in'/>
-                <arg type='i' name='ret' direction='out'/>
+                <arg type='u' name='seek_return'     direction='out'/>
             </method>
             <method name='read'>
                 <arg type='d' name='duration_seconds'   direction='in'/>
@@ -183,6 +180,9 @@ class PublicationControl(object):
             self._set_terminate( ExitStatus.BAD_BAG, "Unable to create BagReader: {}".format(e))
         rospy.loginfo("...Done")
 
+        # create clock publisher
+        self._clock_publisher = rospy.Publisher("/clock", Clock, queue_size=100)
+
 
     def _create_publisher( self, msg_cont ):
 
@@ -195,6 +195,9 @@ class PublicationControl(object):
 
 
     def _publish_msg( self, msg_cont ):
+
+        # clock message is special and we handle it specially!
+        if msg_cont.topic == "\clock": return
         
         if msg_cont.topic not in self._all_publishers:
             self._create_publisher(msg_cont)
@@ -233,7 +236,6 @@ class PublicationControl(object):
         generates a frame over the period of duration, which is then published to the ROS graph. 
         returns the last \clock message as seconds float. returns a -ve number if in error
         """
-        print "Recieved Read Command for frame of width: {}".format(duration)
         dbg_start_read = time.time()
         out_clock = -1.0 # RVN::TODO: Connect this!!
 
@@ -241,22 +243,27 @@ class PublicationControl(object):
         if rospy.is_shutdown():
            print  "Error: tried to read frame when ROS is shutdown!"
            return -1.0
-
-        print "recieved the 'read' d-bus signal. Publishing frame of {} seconds".format(duration)
-        
+       
         try:
             frame = self.bag_reader.get_next_frame( duration )
         except Exception as e:
             print "{}".format(e)
             return out_clock
         
-        print "RVN::DBG: Frame extraction took: {} sec", time.time() - dbg_start_read
+        out_clock = rospy.Time(0)
+        for topic in frame:
+            msg = frame[topic]
+            self._publish_msg( msg )
+            if out_clock < msg.time_of_bagging:
+                out_clock = msg.time_of_bagging
 
-        for msg in frame:
-            self._publish_msg(msg)
-              
-        print "Frame contained {} messages".format(len(frame))
-        return out_clock
+        # publish /clock
+        clock_msg = Clock()
+        clock_msg.clock = out_clock
+        self._clock_publisher.publish(clock_msg)
+
+        # return the clock via d-bus
+        return out_clock.to_sec()
 
 
 
