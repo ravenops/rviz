@@ -113,6 +113,7 @@ class BagReader(object):
 
     def reseek( self, seek_point ):
         """ stops the current itteration and resets the read loop criteria. input time is from start of bag not Unix time"""
+        print "***** WOOP ****"
         if type(seek_point) is float or type(seek_point) is int: 
             seek_point = seek_point + self.bag.get_start_time()
             seek_point = rospy.Time(seek_point)
@@ -120,8 +121,9 @@ class BagReader(object):
         if rospy.Time(self.bag.get_end_time()) <= seek_point:
             raise Exception("A seek point of {} is greater than the end of bag: {}".format(seek_point, self.bag.get_end_time()))
 
-        self._frame_end      = seek_point
-        self._generator      = self.bag.read_messages(raw=True, start_time=seek_point, end_time=rospy.Time(self.bag.get_end_time()))
+        self._frame_end = seek_point
+        self._generator = self.bag.read_messages(raw=True, start_time=seek_point, end_time=rospy.Time(self.bag.get_end_time()))
+        print "Have new seek point at: {}".format(seek_point)
 
 
     def get_next_frame( self, duration ):
@@ -161,7 +163,7 @@ class PublicationControl(object):
                 <arg type='d' name='last_ros_clock_msg' direction='out'/>
             </method>
             <property name="current_time" type="d" access="read">
-            <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>                          # RVN::FIX: Implement
+            <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
             </property>
             </interface>
         </node>
@@ -217,7 +219,6 @@ class PublicationControl(object):
             self._set_terminate( ExitStatus.BAD_DESERIAL, "Unable to publish msg to '{}' topic, cannot deserialize: {}".format(msg_cont.topic,e))
 
         self._all_publishers[msg_cont.topic].publish(msg)
-        # RVN::FIX: Publish the bagged time as "/clock"
 
 
     def _set_terminate( self, code, ex_str="" ):
@@ -241,7 +242,7 @@ class PublicationControl(object):
         rospy.loginfo("recieved 'seek' signal. Seeking to {}".format(t))
         
         try:
-            self.bag_reader.reseek
+            self.bag_reader.reseek(t)
         except Exception as e:
             rospy.logerr("Unable To Seek! {}".format(e))
 
