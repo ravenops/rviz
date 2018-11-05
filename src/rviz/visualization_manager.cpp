@@ -218,7 +218,6 @@ VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesC
 
   if (dump_images_config_ != NULL && dump_images_config_->enabled) 
   {
-    ROS_INFO("A");
     if (!QDBusConnection::sessionBus().isConnected()) {
       ROS_ERROR(
         "%s\n%s\t%s", 
@@ -228,16 +227,31 @@ VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesC
       );
       exit(EXIT_FAILURE);
     }
-    ROS_INFO("B");
-    dbus_ = new QDBusInterface(RVN_SERVICE_NAME, "/", "");
-    ROS_INFO("C");
-    if(dbus_ != NULL && !dbus_->isValid()){
-      ROS_INFO("D");
+    QString rvn_service_name = QString(RVN_SERVICE_NAME);
+    QString dbusPath = QString(rvn_service_name).replace(".","/").prepend("/");
+    dbus_ = new QDBusInterface(rvn_service_name, dbusPath,  rvn_service_name);
+    if(dbus_ != NULL && dbus_->isValid())
+    {
       // QDBusReply<QString> reply = iface.call("PlayFrameWidth", argc > 1 ? argv[1] : "");
-      dbus_->call("Kill");
-      ROS_INFO("E");
+      // QDBusReply<void> reply = dbus_->call("Kill");
+      // ROS_INFO("kill reply valid %d %s", reply.isValid(), reply.error().message().toStdString().c_str());
+      ROS_INFO("dbus setup, ready");
+      QDBusReply<double> reply = dbus_->call("Seek", 0.0);
+      if (reply.isValid())
+      { 
+        double lastTimeSeconds = reply.value();
+        ROS_INFO("lastTimeSeconds %f", lastTimeSeconds);
+      }
+      else
+      {
+        ROS_INFO("lastTimeSeconds error: '%s'", reply.error().message().toStdString().c_str());
+      }
     }
-    ROS_INFO("H");
+    else{
+      ROS_ERROR("NO DBus ros bag player in dump images mode, can't continue.");
+      dbus_ == NULL;
+      exit(EXIT_FAILURE);
+    }
   }
 }
 
@@ -268,10 +282,10 @@ VisualizationManager::~VisualizationManager()
   Ogre::Root::getSingletonPtr()->removeFrameListener( ogre_render_queue_clearer_ );
   delete ogre_render_queue_clearer_;
 
-  delete dbus_;
-  delete window_;
-  delete screen_;
-  delete dump_images_config_;
+  if(dbus_)
+  {
+    delete dbus_;
+  }
 }
 
 void VisualizationManager::initialize()
