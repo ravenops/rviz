@@ -106,6 +106,11 @@ class BagReader(object):
             return True
 
 
+    def get_duration( self ):
+        """returns the duration of the bag in seconds"""
+        return self.bag.get_end_time() - self.bag.get_start_time()
+
+
     def reseek( self, seek_point ):
         """ stops the current itteration and resets the read loop criteria. input time is from start of bag not Unix time"""
         if type(seek_point) is float or type(seek_point) is int: 
@@ -113,11 +118,10 @@ class BagReader(object):
             seek_point = rospy.Time(seek_point)
 
         if rospy.Time(self.bag.get_end_time()) <= seek_point:
-            return 1
+            raise Exception("A seek point of {} is greater than the end of bag: {}".format(seek_point, self.bag.get_end_time()))
 
         self._frame_end      = seek_point
         self._generator      = self.bag.read_messages(raw=True, start_time=seek_point, end_time=rospy.Time(self.bag.get_end_time()))
-        return 0
 
 
     def get_next_frame( self, duration ):
@@ -150,7 +154,7 @@ class PublicationControl(object):
             <method name='kill'/>
             <method name='seek'>
                 <arg type='d' name='at_time_seconds' direction='in'/>
-                <arg type='u' name='seek_return'     direction='out'/>
+                <arg type='d' name='seek_return'     direction='out'/>
             </method>
             <method name='read'>
                 <arg type='d' name='duration_seconds'   direction='in'/>
@@ -230,10 +234,19 @@ class PublicationControl(object):
 
 
     def seek( self, t ):
-        """ d-bus method to terminate the read loop and seek to t seconds from start of bag(or as close as possible) """
+        """
+        d-bus method to terminate the read loop and seek to t seconds from start of bag(or as close as possible)
+        returns the length of the bag in seconds.
+        """
         rospy.loginfo("recieved 'seek' signal. Seeking to {}".format(t))
-        return self.bag_reader.reseek(t)
- 
+        
+        try:
+            self.bag_reader.reseek
+        except Exception as e:
+            rospy.logerr("Unable To Seek! {}".format(e))
+
+        return self.bag_reader.get_duration()
+
 
     def read( self, duration ):
         """
@@ -242,7 +255,7 @@ class PublicationControl(object):
         returns the last \clock message as seconds float. returns a -ve number if in error
         """
         dbg_start_read = time.time()
-        out_clock = -1.0
+        clock_msg = Clock()        
 
         # ROS OK check
         if rospy.is_shutdown():
@@ -253,20 +266,24 @@ class PublicationControl(object):
             frame = self.bag_reader.get_next_frame( duration )
         except Exception as e:
             print "{}".format(e)
-            return out_clock
+            return clock_msg.clock.to_sec()
         
-        clock_msg = Clock()
-        clock_msg.clock = self.bag_reader.clock_out
-        self._clock_publisher.publish(clock_msg)
+        old_clock = rospy.Time(0)
+        clock_dt  = rospy.Duration(0.01) # RVN:FIX: This is Hard Coded!
 
         for msg in frame:
-            # msg = frame[topic]
+    
+            # get the latest clock message
+            clock_msg.clock = msg.time_of_bagging
+            if clock_msg.clock - old_clock > clock_dt:
+                old_clock = clock_msg.clock
+                self._clock_publisher.publish(clock_msg)
+    
+            # publish the general message
             self._publish_msg( msg )
 
-        print "Have frame of {} messages. Clock = {}".format(len(frame),self.bag_reader.out_clock.to_sec())
-
         # return the clock via d-bus
-        return out_clock.to_sec()
+        return old_clock.to_sec()
 
 
 
