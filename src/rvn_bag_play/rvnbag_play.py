@@ -96,6 +96,7 @@ class BagReader(object):
             raise Exception("Unable to load bagfile from path '{}': {}".format(bagfile,e))
 
         self.reseek( 0 )
+        self.clock_out = rospy.Time(0)
 
 
     def _reached_frame_end( self, t ):
@@ -123,15 +124,19 @@ class BagReader(object):
         """ loop over all messages in bag. Loop start defined by 'reseek()' """
         if type(duration) is float:
             duration = rospy.Duration(duration)
-        frame={}
+        
+        frame=[]
         self._frame_end = self._frame_end+duration
+        self.clock_out = rospy.Time(0)
 
         for topic, raw_msg, t in self._generator:
 
             if self._reached_frame_end(t): 
                 break
             else:
-                frame[topic] = MessageContainer(topic, raw_msg=raw_msg, t=t)
+                frame.append( MessageContainer(topic, raw_msg=raw_msg, t=t) )
+                if self.clock_out < frame[-1].time_of_bagging:
+                    self.clock_out = frame[-1].time_of_bagging
 
         return frame        
 
@@ -237,7 +242,7 @@ class PublicationControl(object):
         returns the last \clock message as seconds float. returns a -ve number if in error
         """
         dbg_start_read = time.time()
-        out_clock = -1.0 # RVN::TODO: Connect this!!
+        out_clock = -1.0
 
         # ROS OK check
         if rospy.is_shutdown():
@@ -250,17 +255,15 @@ class PublicationControl(object):
             print "{}".format(e)
             return out_clock
         
-        out_clock = rospy.Time(0)
-        for topic in frame:
-            msg = frame[topic]
-            self._publish_msg( msg )
-            if out_clock < msg.time_of_bagging:
-                out_clock = msg.time_of_bagging
-
-        # publish /clock
         clock_msg = Clock()
-        clock_msg.clock = out_clock
+        clock_msg.clock = self.bag_reader.clock_out
         self._clock_publisher.publish(clock_msg)
+
+        for msg in frame:
+            # msg = frame[topic]
+            self._publish_msg( msg )
+
+        print "Have frame of {} messages. Clock = {}".format(len(frame),self.bag_reader.out_clock.to_sec())
 
         # return the clock via d-bus
         return out_clock.to_sec()
