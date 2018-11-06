@@ -18,12 +18,13 @@ class LockStep(object):
             <interface name='{}'>
             <method name='Kill'/>
             <method name='Seek'>
-                <arg type='d' name='atTimeSeconds' direction='in'/>
+                <arg type='d' name='atTimeSeconds'    direction='in'/>
                 <arg type='d' name='totalTimeSeconds' direction='out'/>
             </method>
             <method name='Read'>
                 <arg type='d' name='durationSeconds' direction='in'/>
                 <arg type='d' name='lastTimeSeconds' direction='out'/>
+                <arg type='s' name='errors'          direction='out'/>
             </method>
             <property name="CurrentTime" type="d" access="read">
                 <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
