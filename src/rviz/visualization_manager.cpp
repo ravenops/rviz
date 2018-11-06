@@ -434,9 +434,10 @@ void VisualizationManager::onUpdate()
       }
       dump_images_config_->bagDuration = reply.value();
       nextFrame();
-      should_render = true;
+      // should_render = true;
     }
-    else if(rosTime >= dump_images_config_->lastEventTime) {
+    
+    if(rosTime >= dump_images_config_->lastEventTime) {
       nextFrame();
       should_render = true;
     }
