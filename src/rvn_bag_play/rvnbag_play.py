@@ -95,6 +95,7 @@ class BagReader(object):
         except Exception as e:
             raise Exception("Unable to load bagfile from path '{}': {}".format(bagfile,e))
 
+        self._latching_status = {}
         self.reseek( 0 )
         self.clock_out = rospy.Time(0)
 
@@ -111,9 +112,35 @@ class BagReader(object):
         return self.bag.get_end_time() - self.bag.get_start_time()
 
 
+    def is_latched(self, topic):
+        """get the latching status of this topic"""
+        if topic not in self._latching_status:
+            return False
+        else:
+            return self._latching_status[topic]
+
+
+    def _header_callback( self, topic, datatype, md5sum, msg_def, header ):
+        """ Callback to get the topic connection header for this msg. This is so we can store the latched topics """
+        # the /tf_static topic is a special case -- it is ALWAYS latched!
+        if topic == "/tf_static":
+            self._latching_status[topic] = True
+            return True
+
+        # if not specified, default
+        if "latching" not in header: 
+            self._latching_status[topic] = False
+            return True
+
+        # set the value for all other topics
+        if topic not in self._latching_status:
+            self._latching_status[topic] = header["latching"]
+
+        return True
+
+
     def reseek( self, seek_point ):
         """ stops the current itteration and resets the read loop criteria. input time is from start of bag not Unix time"""
-        print "***** WOOP ****"
         if type(seek_point) is float or type(seek_point) is int: 
             seek_point = seek_point + self.bag.get_start_time()
             seek_point = rospy.Time(seek_point)
@@ -122,8 +149,11 @@ class BagReader(object):
             raise Exception("A seek point of {} is greater than the end of bag: {}".format(seek_point, self.bag.get_end_time()))
 
         self._frame_end = seek_point
-        self._generator = self.bag.read_messages(raw=True, start_time=seek_point, end_time=rospy.Time(self.bag.get_end_time()))
-        print "Have new seek point at: {}".format(seek_point)
+        self._generator = self.bag.read_messages(
+            raw        = True,
+            start_time = seek_point, 
+            end_time   = rospy.Time(self.bag.get_end_time()),
+            connection_filter = self._header_callback )
 
 
     def get_next_frame( self, duration ):
@@ -133,7 +163,7 @@ class BagReader(object):
         
         frame=[]
         self._frame_end = self._frame_end+duration
-        self.clock_out = rospy.Time(0)
+        self.clock_out  = rospy.Time(0)
 
         for topic, raw_msg, t in self._generator:
 
@@ -194,11 +224,19 @@ class PublicationControl(object):
         # create clock publisher
         self._clock_publisher = rospy.Publisher("/clock", Clock, queue_size=100)
 
+        # set bag to start
+        self.bag_reader.reseek( 0 )
+
 
     def _create_publisher( self, msg_cont ):
 
         try:
-            new_pub = rospy.Publisher(msg_cont.topic, msg_cont.msg_class, queue_size=100) # RVN::FIX: queue_size=???)
+            new_pub = rospy.Publisher(
+                msg_cont.topic,
+                msg_cont.msg_class,
+                latch      = self.bag_reader.is_latched(msg_cont.topic),
+                queue_size = 1000 ) # RVN::FIX: queue_size=???
+
         except Exception as e:
             self._set_terminate( ExitStatus.PUB_FAIL, "Cannot create publisher for '{}' topic: {}".format(msg_cont.topic,e))
 
@@ -207,8 +245,9 @@ class PublicationControl(object):
 
     def _publish_msg( self, msg_cont ):
 
+
         # clock message is special and we handle it specially!
-        if msg_cont.topic == "\clock": return
+        if msg_cont.topic == "/clock": return
         
         if msg_cont.topic not in self._all_publishers:
             self._create_publisher(msg_cont)
@@ -268,6 +307,7 @@ class PublicationControl(object):
         except Exception as e:
             print "{}".format(e)
             return clock_msg.clock.to_sec()
+
         
         old_clock = rospy.Time(0)
         clock_dt  = rospy.Duration(0.01) # RVN:FIX: This is Hard Coded!
@@ -279,6 +319,7 @@ class PublicationControl(object):
             if clock_msg.clock - old_clock > clock_dt:
                 old_clock = clock_msg.clock
                 self._clock_publisher.publish(clock_msg)
+                # if self._tf_static: self._publish_msg(self._tf_static)
     
             # publish the general message
             self._publish_msg( msg )
