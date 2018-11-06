@@ -11,6 +11,12 @@ namespace rviz
 struct DumpImagesConfig {
   bool enabled;
   std::string folder;
+  float fps;
+
+  double frameWidth;
+  double bagDuration;
+  double nextTime;
+  double lastEventTime;
 };
 
 } // namespace rviz

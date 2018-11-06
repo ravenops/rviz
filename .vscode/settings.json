@@ -55,6 +55,7 @@
         "qmessagebox": "cpp",
         "qpixmap": "cpp",
         "qtdbus": "cpp",
-        "qdbusconnection": "cpp"
+        "qdbusconnection": "cpp",
+        "*.ipp": "cpp"
     }
 }

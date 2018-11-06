@@ -4,7 +4,7 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/../../install_isolated/include/**",
+                "/opt/ros/kinetic/include/**",
                 "/usr/include/qt4/**",
                 "/usr/include/OGRE/**"
             ],
