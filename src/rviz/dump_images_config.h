@@ -13,6 +13,7 @@ struct DumpImagesConfig {
   std::string folder;
   float fps;
 
+  uint delayFrames;
   double frameWidth;
   double bagDuration;
   double nextTime;

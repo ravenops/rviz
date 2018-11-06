@@ -391,6 +391,7 @@ protected:
 
   uint32_t render_requested_;
   uint64_t frame_count_;
+  uint64_t dumped_frame_count_;
 
   WindowManagerInterface* window_manager_;
   

@@ -132,6 +132,7 @@ VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesC
 , frame_update_timer_(0.0f)
 , render_requested_(1)
 , frame_count_(0)
+, dumped_frame_count_(0)
 , window_manager_(wm)
 , private_( new VisualizationManagerPrivate )
 {
@@ -236,7 +237,6 @@ VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesC
     }
 
     ROS_INFO("dbus setup, ready");
-    dump_images_config_->frameWidth = 1 / dump_images_config_->fps;
   }
     
   update_timer_ = new QTimer;
@@ -412,10 +412,19 @@ void VisualizationManager::onUpdate()
 
   double rosTime = last_update_ros_time_.toSec();
 
+  // ROS_INFO(
+  //   "fc:%d dc:%d delayFrame:%d bd:%f", 
+  //   int(frame_count_), int(dumped_frame_count_),
+  //     dump_images_config_->delayFrames,
+  //     dump_images_config_->bagDuration
+  //   );
+
   bool should_render = false;
   if(shouldDump)
   {
-    if(dump_images_config_->bagDuration == 0)
+    // ROS_INFO("<%d> wall clock %f", uint(frame_count_), last_update_wall_time_.toSec());
+
+    if(dump_images_config_->bagDuration == 0 && frame_count_ > dump_images_config_->delayFrames)
     {
       QDBusReply<double> reply = dbus_->call("seek", 0.0);
       if (!reply.isValid())
@@ -424,10 +433,10 @@ void VisualizationManager::onUpdate()
         exit(EXIT_FAILURE);
       }
       dump_images_config_->bagDuration = reply.value();
+      nextFrame();
+      should_render = true;
     }
-
-    ROS_INFO("<%d> wall clock %f", uint(frame_count_), last_update_wall_time_.toSec());
-    if(rosTime == 0 || rosTime >= dump_images_config_->lastEventTime) {
+    else if(rosTime >= dump_images_config_->lastEventTime) {
       nextFrame();
       should_render = true;
     }
@@ -444,11 +453,11 @@ void VisualizationManager::onUpdate()
     boost::mutex::scoped_lock lock(private_->render_mutex_);
     ogre_root_->renderOneFrame();
 
-    if (shouldDump)
+    if (shouldDump  && dump_images_config_->bagDuration > 0)
     {
       QPixmap screenshot_ = screen_->grabWindow(window_->winId());
       QString filename;
-      filename.sprintf("%s/%08d.jpg", dump_images_config_->folder.c_str(), uint(frame_count_));
+      filename.sprintf("%s/%08d.jpg", dump_images_config_->folder.c_str(), uint(++dumped_frame_count_));
 
       QImageWriter writer(filename);
       if (!writer.write(screenshot_.toImage()))
@@ -481,8 +490,10 @@ void VisualizationManager::onUpdate()
       {
         ROS_INFO(
           "Finished dumping %f second bag with %d frames.", 
-          dump_images_config_->bagDuration, int(frame_count_)
+          dump_images_config_->bagDuration, uint(dumped_frame_count_)
         );
+
+        dbus_->call("kill");
         exit(EXIT_SUCCESS);
       }
     }
@@ -501,14 +512,14 @@ void VisualizationManager::nextFrame()
   }
 
   dump_images_config_->lastEventTime = reply.value();
-  ROS_INFO(
-      "lastEventTime:%f ros:%f wall:%f",
-      dump_images_config_->lastEventTime,
-      ros::Time::now().toSec(), 
-      last_update_wall_time_.toSec()
-  );
+  double previous = dump_images_config_->nextTime;
+  double next = dump_images_config_->nextTime + dump_images_config_->frameWidth;
 
-  dump_images_config_->nextTime += dump_images_config_->frameWidth;
+  ROS_INFO(
+      "Pulling events from %f to %f",
+      previous, next);
+
+  dump_images_config_->nextTime = next;
   startUpdate();
 }
 
