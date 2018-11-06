@@ -155,6 +155,9 @@ class BagReader(object):
             end_time   = rospy.Time(self.bag.get_end_time()),
             connection_filter = self._header_callback )
 
+        # reset clock
+        self.clock_out = seek_point
+
 
     def get_next_frame( self, duration ):
         """ loop over all messages in bag. Loop start defined by 'reseek()' """
@@ -226,10 +229,10 @@ class PublicationControl(object):
 
         # set bag to start
         self.bag_reader.reseek( 0 )
+        self._initial_seek_lock = True
 
 
     def _create_publisher( self, msg_cont ):
-
         try:
             new_pub = rospy.Publisher(
                 msg_cont.topic,
@@ -244,7 +247,6 @@ class PublicationControl(object):
 
 
     def _publish_msg( self, msg_cont ):
-
 
         # clock message is special and we handle it specially!
         if msg_cont.topic == "/clock": return
@@ -277,13 +279,26 @@ class PublicationControl(object):
         """
         d-bus method to terminate the read loop and seek to t seconds from start of bag(or as close as possible)
         returns the length of the bag in seconds.
+
+        RVN::NB: Seeking back in time can cause problems with parts of ROS that are not robust to -ve time jumps
+        (especially the tf tree!). The seek lock allows you to do this once, but you really should restart
+        ros if you want to do this repeatedly.
         """
-        rospy.loginfo("recieved 'seek' signal. Seeking to {}".format(t))
+
+        dt = self.bag_reader.clock_out.to_sec()-self.bag_reader.bag.get_start_time()
+        rospy.loginfo("recieved 'seek' signal after {} sec of playback. Seeking to {}".format( dt ,t))
+
+        if t < dt and not self._initial_seek_lock:
+            rospy.logwarn("You are attempting to perform a seek back in time. This *may* cause problems with existing TF trees")
         
         try:
             self.bag_reader.reseek(t)
         except Exception as e:
             rospy.logerr("Unable To Seek! {}".format(e))
+
+        # republish new clock time and clear the initial seek lock
+        self._clock_publisher.publish( self.bag_reader.clock_out )
+        self._initial_seek_lock = False
 
         return self.bag_reader.get_duration()
 
@@ -293,38 +308,37 @@ class PublicationControl(object):
         d-bus method to read and publish the frame over duration. 
         generates a frame over the period of duration, which is then published to the ROS graph. 
         returns the last \clock message as seconds float. returns a -ve number if in error
+
+        RVN::NB: This will not do anything if you have not already 'seeked' prior to calling
+        this method. This ensures that an initial re-seek back to 0 does not befoul the 
+        tf tree.
         """
-        dbg_start_read = time.time()
-        clock_msg = Clock()        
+        if self._initial_seek_lock: return 0.0
 
-        # ROS OK check
-        if rospy.is_shutdown():
-           print  "Error: tried to read frame when ROS is shutdown!"
-           return -1.0
-       
-        try:
-            frame = self.bag_reader.get_next_frame( duration )
-        except Exception as e:
-            print "{}".format(e)
-            return clock_msg.clock.to_sec()
-
-        
         old_clock = rospy.Time(0)
         clock_dt  = rospy.Duration(0.01) # RVN:FIX: This is Hard Coded!
 
-        for msg in frame:
-    
-            # get the latest clock message
-            clock_msg.clock = msg.time_of_bagging
-            if clock_msg.clock - old_clock > clock_dt:
-                old_clock = clock_msg.clock
-                self._clock_publisher.publish(clock_msg)
-                # if self._tf_static: self._publish_msg(self._tf_static)
-    
-            # publish the general message
-            self._publish_msg( msg )
+        # ROS OK check
+        if rospy.is_shutdown():
+           rospy.logerr("Error: tried to read frame when ROS is shutdown!")
+           return -1.0
+       
+        # get the frame
+        try:
+            frame = self.bag_reader.get_next_frame( duration )
+        except Exception as e:
+            rospy.logerr("{}".format(e))
+            return clock_msg.clock.to_sec()
+        
+        # publish the message
+        for msg in frame:    
+           self._publish_msg( msg )
 
-        # return the clock via d-bus
+        # return the clock via d-bus and possibly publish to system
+        if self.bag_reader.clock_out - old_clock > clock_dt:
+            old_clock = self.bag_reader.clock_out
+            self._clock_publisher.publish(self.bag_reader.clock_out)
+
         return old_clock.to_sec()
 
 
