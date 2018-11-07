@@ -236,6 +236,7 @@ VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesC
       exit(EXIT_FAILURE);
     }
 
+    dbus_->call("kill");
     ROS_INFO("dbus setup, ready");
   }
     
@@ -495,7 +496,6 @@ void VisualizationManager::onUpdate()
           dump_images_config_->bagDuration, uint(dumped_frame_count_)
         );
 
-        dbus_->call("kill");
         exit(EXIT_SUCCESS);
       }
     }
