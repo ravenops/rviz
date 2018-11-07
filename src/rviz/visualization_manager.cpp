@@ -433,6 +433,7 @@ void VisualizationManager::onUpdate()
         exit(EXIT_FAILURE);
       }
       dump_images_config_->bagDuration = reply.value();
+      ROS_INFO("Bag duration %f seconds.", dump_images_config_->bagDuration);
       nextFrame();
       // should_render = true;
     }

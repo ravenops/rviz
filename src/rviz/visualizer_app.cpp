@@ -250,6 +250,7 @@ bool VisualizerApp::init(int argc, char **argv)
         dump_images_config->frameWidth = 1 / dump_images_config->fps;
         dump_images_config->delayFrames = uint(ceil(vm["dump-delay"].as<float>() * dump_images_config->fps));
         dump_images_config->bagDuration = 0;
+        dump_images_config->nextTime = 0;
 
         if(QDir().mkdir(QString::fromStdString(dump_images_config->folder)))
         {
