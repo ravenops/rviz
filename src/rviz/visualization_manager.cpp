@@ -495,6 +495,7 @@ void VisualizationManager::onUpdate()
           dump_images_config_->bagDuration, uint(dumped_frame_count_)
         );
 
+        dbus_->call("kill");
         exit(EXIT_SUCCESS);
       }
     }
