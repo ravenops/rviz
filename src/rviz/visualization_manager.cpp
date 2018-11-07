@@ -41,6 +41,7 @@
 #endif
 
 #include <boost/bind.hpp>
+#include <boost/filesystem.hpp>
 #include <boost/format.hpp>
 
 #include <OgreRoot.h>
@@ -54,7 +55,6 @@
 #include <OgreSharedPtr.h>
 #include <OgreCamera.h>
 
-#include <boost/filesystem.hpp>
 
 #include <tf/transform_listener.h>
 
@@ -87,6 +87,8 @@
 
 #include "rviz/visualization_manager.h"
 #include "rviz/window_manager_interface.h"
+
+#define RVN_SERVICE_NAME "com.ravenops.rviz.LockStep"
 
 namespace rviz
 {
@@ -130,6 +132,7 @@ VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesC
 , frame_update_timer_(0.0f)
 , render_requested_(1)
 , frame_count_(0)
+, dumped_frame_count_(0)
 , window_manager_(wm)
 , private_( new VisualizationManagerPrivate )
 {
@@ -211,6 +214,31 @@ VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesC
   if (window_)
     screen_ = window_->screen();
 
+  if (dump_images_config_ != NULL && dump_images_config_->enabled) 
+  {
+    if (!QDBusConnection::sessionBus().isConnected()) {
+      ROS_ERROR(
+        "%s\n%s\t%s", 
+        "Cannot connect to the D-Bus session bus.",
+        "To start it, run:",
+        "eval `dbus-launch --auto-syntax`"
+      );
+      exit(EXIT_FAILURE);
+    }
+    QString rvn_service_name = QString(RVN_SERVICE_NAME);
+    QString dbusPath = QString(rvn_service_name).replace(".","/").prepend("/");
+    dbus_ = new QDBusInterface(rvn_service_name, dbusPath,  rvn_service_name);
+    
+    if(dbus_ == NULL || !dbus_->isValid())
+    {
+      ROS_ERROR("NO DBus ros bag player in dump images mode, can't continue.");
+      dbus_ == NULL;
+      exit(EXIT_FAILURE);
+    }
+    
+    ROS_INFO("dbus setup, ready");
+  }
+    
   update_timer_ = new QTimer;
   connect( update_timer_, SIGNAL( timeout() ), this, SLOT( onUpdate() ));
 }
@@ -241,6 +269,11 @@ VisualizationManager::~VisualizationManager()
 
   Ogre::Root::getSingletonPtr()->removeFrameListener( ogre_render_queue_clearer_ );
   delete ogre_render_queue_clearer_;
+
+  if(dbus_)
+  {
+    delete dbus_;
+  }
 }
 
 void VisualizationManager::initialize()
@@ -324,6 +357,7 @@ void VisualizationManager::onUpdate()
   float ros_dt = ros_diff.toSec();
   last_update_ros_time_ = ros::Time::now();
   last_update_wall_time_ = ros::WallTime::now();
+  bool shouldDump = dump_images_config_ != NULL && dump_images_config_->enabled;
 
   if(ros_dt < 0.0)
   {
@@ -342,7 +376,7 @@ void VisualizationManager::onUpdate()
 
   time_update_timer_ += wall_dt;
 
-  if( time_update_timer_ > 0.1f )
+  if( time_update_timer_ > 0.1f || shouldDump)
   {
     time_update_timer_ = 0.0f;
 
@@ -376,45 +410,119 @@ void VisualizationManager::onUpdate()
 
   frame_count_++;
 
-  if ( render_requested_ || wall_dt > 0.01 )
+  double rosTime = last_update_ros_time_.toSec();
+
+  // ROS_INFO(
+  //   "fc:%d dc:%d delayFrame:%d bd:%f", 
+  //   int(frame_count_), int(dumped_frame_count_),
+  //     dump_images_config_->delayFrames,
+  //     dump_images_config_->bagDuration
+  //   );
+
+  bool should_render = false;
+  if(shouldDump)
   {
+    // ROS_INFO("<%d> wall clock %f", uint(frame_count_), last_update_wall_time_.toSec());
+
+    if(dump_images_config_->bagDuration == 0 && frame_count_ > dump_images_config_->delayFrames)
+    {
+      QDBusReply<double> reply = dbus_->call("seek", 0.0);
+      if (!reply.isValid())
+      { 
+        ROS_ERROR("lastTimeSeconds error: '%s'", reply.error().message().toStdString().c_str());
+        exit(EXIT_FAILURE);
+      }
+      dump_images_config_->bagDuration = reply.value();
+      ROS_INFO("Bag duration %f seconds.", dump_images_config_->bagDuration);
+      nextFrame();
+      // should_render = true;
+    }
+    
+    if(rosTime >= dump_images_config_->lastEventTime) {
+      nextFrame();
+      should_render = true;
+    }
+  }
+  else{
+    if ( render_requested_ || wall_dt > 0.01 )
+    {
+      should_render = true;
+    }
+  }
+  
+  if (should_render){
     render_requested_ = 0;
     boost::mutex::scoped_lock lock(private_->render_mutex_);
     ogre_root_->renderOneFrame();
 
-    if(dump_images_config_ != NULL && cam != NULL &&  screen_ != NULL && dump_images_config_->enabled){
-      QPixmap screenshot_ = screen_->grabWindow( window_->winId() );
+    if (shouldDump  && dump_images_config_->bagDuration > 0)
+    {
+      QPixmap screenshot_ = screen_->grabWindow(window_->winId());
       QString filename;
-      filename.sprintf("%s/%08d.jpg", dump_images_config_->folder.c_str(), uint(frame_count_));
+      filename.sprintf("%s/%08d.jpg", dump_images_config_->folder.c_str(), uint(++dumped_frame_count_));
 
-      QImageWriter writer( filename );
-      if( !writer.write( screenshot_.toImage() ))
+      QImageWriter writer(filename);
+      if (!writer.write(screenshot_.toImage()))
       {
         QString error_message;
-        if( writer.error() == QImageWriter::UnsupportedFormatError )
+        if (writer.error() == QImageWriter::UnsupportedFormatError)
         {
-          QString suffix = filename.section( '.', -1 );
-          QString formats_string; 
+          QString suffix = filename.section('.', -1);
+          QString formats_string;
           QList<QByteArray> formats = QImageWriter::supportedImageFormats();
           formats_string = formats[0];
-          for( int i = 1; i < formats.size(); i++ )
+          for (int i = 1; i < formats.size(); i++)
           {
-            formats_string += ", " + formats[ i ];
+            formats_string += ", " + formats[i];
           }
 
           error_message =
-            "File type '" + suffix + "' is not supported.\n" +
-            "Supported image formats are: " + formats_string + "\n";
+              "File type '" + suffix + "' is not supported.\n" +
+              "Supported image formats are: " + formats_string + "\n";
         }
         else
         {
           error_message = "Failed to write image to file " + filename;
         }
 
-        QMessageBox::critical( window_manager_->getParentWindow(), "Error", error_message );
+        QMessageBox::critical(window_manager_->getParentWindow(), "Error", error_message);
+      }
+
+      if (  dump_images_config_->nextTime > dump_images_config_->bagDuration )
+      {
+        ROS_INFO(
+          "Finished dumping %f second bag with %d frames.", 
+          dump_images_config_->bagDuration, uint(dumped_frame_count_)
+        );
+
+        dbus_->call("kill");
+        exit(EXIT_SUCCESS);
       }
     }
   }
+}
+
+void VisualizationManager::nextFrame()
+{
+  QDBusReply<double> reply = dbus_->call("read", dump_images_config_->frameWidth);
+  if (!reply.isValid())
+  {
+    ROS_ERROR(
+        "Reply for frame width not valid, can't continue. '%s'",
+        reply.error().message().toStdString().c_str());
+    exit(EXIT_FAILURE);
+  }
+
+  dump_images_config_->lastEventTime = reply.value();
+  double previous = dump_images_config_->nextTime;
+  double next = dump_images_config_->nextTime + dump_images_config_->frameWidth;
+
+  ROS_INFO(
+      "Pulling events from %f to %f",
+      previous, next);
+
+  dump_images_config_->nextTime = next;
+  startUpdate();
 }
 
 void VisualizationManager::updateTime()

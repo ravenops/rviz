@@ -35,6 +35,7 @@
 
 #include <QScreen>
 #include <QWindow>
+#include <QtDBus/QtDBus>
 
 #include <ros/time.h>
 
@@ -390,6 +391,7 @@ protected:
 
   uint32_t render_requested_;
   uint64_t frame_count_;
+  uint64_t dumped_frame_count_;
 
   WindowManagerInterface* window_manager_;
   
@@ -400,6 +402,7 @@ protected:
   QScreen* screen_;
   QWindow* window_;
   DumpImagesConfig* dump_images_config_;
+  QDBusInterface* dbus_;
 
 private Q_SLOTS:
   void updateFixedFrame();
@@ -414,6 +417,8 @@ private:
   BitAllocator visibility_bit_allocator_;
   QString help_path_;
   Ogre::Light* directional_light_;
+
+  void nextFrame();
 };
 
 }
