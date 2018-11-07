@@ -235,8 +235,7 @@ VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesC
       dbus_ == NULL;
       exit(EXIT_FAILURE);
     }
-
-    dbus_->call("kill");
+    
     ROS_INFO("dbus setup, ready");
   }
     
