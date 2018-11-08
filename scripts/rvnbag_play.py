@@ -8,7 +8,6 @@ Copyright (c) 2018, Raven Ops Inc., All Rights Reserved
 
 Raven Rosbag player, using D-Bus to communicate to the RvnRviz renderer
 
-RVN::FIX: This has to become a ROS Package, because ROS!!!
 """
 
 # General Python Imports
@@ -369,10 +368,20 @@ def main():
     rospy.loginfo("starting d-bus service...")
     try:
         session_bus = SessionBus()
+    except Exception as e:
+        rospy.logerr("Unable to create the session dbus")
+        return ExitStatus.PUB_FAIL
+
+    rospy.loginfo("created the session d-bus object")
+
+    try:
         session_bus.publish( service_name, pub )
     except Exception as e:
         rospy.logerr("Unable to set up session dbus: {}".format(e))
         return ExitStatus.PUB_FAIL
+    
+    rospy.loginfo("published to the {} dbus".format(service_name))
+    rospy.loginfo("running the main loop...")
 
     loop.run()
     rospy.loginfo("...finished d-bus service")
