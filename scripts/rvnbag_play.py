@@ -8,7 +8,6 @@ Copyright (c) 2018, Raven Ops Inc., All Rights Reserved
 
 Raven Rosbag player, using D-Bus to communicate to the RvnRviz renderer
 
-RVN::FIX: This has to become a ROS Package, because ROS!!!
 """
 
 # General Python Imports
@@ -345,7 +344,7 @@ class PublicationControl(object):
 
 # ----------------------------------------------------------------------------------------------------------------------
 def main():
-
+    rospy.loginfo("***** Starting Raven[ops] ROS Bag Player ******") 
     verbose = False
     bagfile = ""
     parser  = argparse.ArgumentParser() # RVN::FIX: usage=print_usage())
@@ -358,19 +357,40 @@ def main():
 
     # We need to change the time -- ROS cannot use wall-time for this publication
     # RVN::FIX: check and confirm this is ok
-    loop = GLib.MainLoop()
+    rospy.loginfo("****** Getting main Glib loop object ******")
+    try:
+        loop = GLib.MainLoop()
+    except Exception as e:
+        rospy.logerr("Unable to create GLib.MainLoop!")
+        return ExitStatus.PUB_FAIL
 
+    rospy.loginfo("****** Creating Publication Control Object *****")
     try:
         pub = PublicationControl( bagfile, loop )
     except Exception as e:
         rospy.logerr("{}".format(e))
         return ExitStatus.PUB_FAIL
 
-    rospy.loginfo("starting d-bus service...")
-    session_bus = SessionBus()
-    session_bus.publish( service_name, pub )
+    rospy.loginfo("***** starting d-bus service... *****")
+    try:
+        session_bus = SessionBus()
+    except Exception as e:
+        rospy.logerr("Unable to create the session dbus")
+        return ExitStatus.PUB_FAIL
+
+    rospy.loginfo("***** created the session d-bus object *****")
+
+    try:
+        session_bus.publish( service_name, pub )
+    except Exception as e:
+        rospy.logerr("Unable to set up session dbus: {}".format(e))
+        return ExitStatus.PUB_FAIL
+    
+    rospy.loginfo("***** published to the '{}' dbus ******".format(service_name))
+    rospy.loginfo("***** running the main loop... *****")
+
     loop.run()
-    rospy.loginfo("...finished d-bus service")
+    rospy.loginfo("***** ...finished d-bus service *****")
 
     return pub.exit_status
 
