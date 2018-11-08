@@ -22,9 +22,14 @@ import rospy
 from rosgraph_msgs.msg import Clock
 
 # D-Bus imports
-from pydbus         import SessionBus
-from gi.repository  import GLib
-from pydbus.generic import signal
+# from pydbus         import SessionBus
+# from gi.repository  import GLib
+# from pydbus.generic import signal
+
+# service msg imports RNF::TODO: make `import *` when  complete
+from rviz.srv import Seek
+from rviz.srv import Read
+from rviz.srv import Kill
 
 # define the dbus name and ROS publication node names
 service_name  = 'com.ravenops.rviz.LockStep'
@@ -182,24 +187,24 @@ class BagReader(object):
 
 # ----------------------------------------------------------------------------------------------------------------------
 class PublicationControl(object):
-    __doc__ = """
-        <node>
-            <interface name='{}'>
-            <method name='kill'/>
-            <method name='seek'>
-                <arg type='d' name='at_time_seconds' direction='in'/>
-                <arg type='d' name='seek_return'     direction='out'/>
-            </method>
-            <method name='read'>
-                <arg type='d' name='duration_seconds'   direction='in'/>
-                <arg type='d' name='last_ros_clock_msg' direction='out'/>
-            </method>
-            <property name="current_time" type="d" access="read">
-            <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
-            </property>
-            </interface>
-        </node>
-    """.format(service_name)
+    # __doc__ = """
+    #     <node>
+    #         <interface name='{}'>
+    #         <method name='kill'/>
+    #         <method name='seek'>
+    #             <arg type='d' name='at_time_seconds' direction='in'/>
+    #             <arg type='d' name='seek_return'     direction='out'/>
+    #         </method>
+    #         <method name='read'>
+    #             <arg type='d' name='duration_seconds'   direction='in'/>
+    #             <arg type='d' name='last_ros_clock_msg' direction='out'/>
+    #         </method>
+    #         <property name="current_time" type="d" access="read">
+    #         <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
+    #         </property>
+    #         </interface>
+    #     </node>
+    # """.format(service_name)
 
     def __init__( self, bagfile,loop):
 
@@ -212,6 +217,13 @@ class PublicationControl(object):
             rospy.init_node( ros_node_name, anonymous=True )
         except Exception as e:
             raise Exception("Unable to start the publication node: {}".format(e))
+
+        try:
+            self.seek_serv = rospy.Service('seek', SeekCmd self.seek)
+            self.seek_serv = rospy.Service('read', ReadCmd self.read)
+            self.seek_serv = rospy.Service('kill', KillCmd self.kill)
+        except Exception as e:
+            raise Exception("Unable to register services to control Seek, Read or Kill: {}".format(e))
 
         # This publication must use simulation time!
         rospy.set_param("use_sim_time", True)
@@ -268,13 +280,14 @@ class PublicationControl(object):
             print "{}".format(ex_str)
 
 
-    def kill( self ):
+    def kill( self, cmd ):
         """ d-bus method to kill the player """
         self._set_terminate( ExitStatus.OK, "recieved 'kill' d-bus signal" )
-        self._loop.quit()
+        # self._loop.quit()
+        return KillCmdResponse()
 
 
-    def seek( self, t ):
+    def seek( self, cmd ):
         """
         d-bus method to terminate the read loop and seek to t seconds from start of bag(or as close as possible)
         returns the length of the bag in seconds.
@@ -283,6 +296,8 @@ class PublicationControl(object):
         (especially the tf tree!). The seek lock allows you to do this once, but you really should restart
         ros if you want to do this repeatedly.
         """
+
+        t = cmd.##### RVN::FIX: SOMETHING!!!!
 
         dt = self.bag_reader.clock_out.to_sec()-self.bag_reader.bag.get_start_time()
         rospy.loginfo("recieved 'seek' signal after {} sec of playback. Seeking to {}".format( dt ,t))
@@ -299,10 +314,10 @@ class PublicationControl(object):
         self._clock_publisher.publish( self.bag_reader.clock_out )
         self._initial_seek_lock = False
 
-        return self.bag_reader.get_duration()
+        return SeekCmdResponse(self.bag_reader.get_duration())
 
 
-    def read( self, duration ):
+    def read( self, cmd ):
         """
         d-bus method to read and publish the frame over duration. 
         generates a frame over the period of duration, which is then published to the ROS graph. 
@@ -312,6 +327,8 @@ class PublicationControl(object):
         this method. This ensures that an initial re-seek back to 0 does not befoul the 
         tf tree.
         """
+        duration = cmd.##### RVN::FIX: SOMETHING!!
+
         if self._initial_seek_lock: return 0.0
 
         old_clock = rospy.Time(0)
@@ -338,7 +355,7 @@ class PublicationControl(object):
             old_clock = self.bag_reader.clock_out
             self._clock_publisher.publish(self.bag_reader.clock_out)
 
-        return old_clock.to_sec()
+        return ReadCmdResponse(old_clock.to_sec())
 
 
 
