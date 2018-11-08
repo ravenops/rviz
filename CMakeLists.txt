@@ -139,6 +139,7 @@ find_package(catkin REQUIRED
   urdf
   visualization_msgs
   urdfdom_headers
+  message_generation
 )
 
 if(${tf_VERSION} VERSION_LESS "1.11.3")
@@ -176,6 +177,20 @@ set(rviz_QT_VERSION ${QTVERSION})
 # There is a matching instance of this in the plugin_description.xml.
 set(rviz_DEFAULT_PLUGIN_LIBRARY_TARGET_NAME rviz_default_plugin)
 
+#find_package(
+#  add_service_files
+#  generate_messages
+#)
+
+# Declare the service files to be built
+add_service_files(
+  FILES
+  Seek.srv
+  Read.srv
+  Kill.srv
+)
+generate_messages(DEPENDENCIES std_msgs)
+
 catkin_package(
   CFG_EXTRAS
     rviz-extras.cmake
@@ -190,6 +205,7 @@ catkin_package(
     ${rviz_ADDITIONAL_LIBRARIES}
     ${OPENGL_LIBRARIES}
   CATKIN_DEPENDS
+    message_runtime
     geometry_msgs
     image_transport
     interactive_markers

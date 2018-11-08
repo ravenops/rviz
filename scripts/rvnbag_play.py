@@ -212,6 +212,7 @@ class PublicationControl(object):
         self._all_publishers = {}
         self._last_ros_clock_msg = None
         self._loop = loop
+        self.term = False
 
         try:
             rospy.init_node( ros_node_name, anonymous=True )
@@ -219,9 +220,9 @@ class PublicationControl(object):
             raise Exception("Unable to start the publication node: {}".format(e))
 
         try:
-            self.seek_serv = rospy.Service('seek', SeekCmd self.seek)
-            self.seek_serv = rospy.Service('read', ReadCmd self.read)
-            self.seek_serv = rospy.Service('kill', KillCmd self.kill)
+            self.seek_serv = rospy.Service('seek', SeekCmd, self.seek)
+            self.seek_serv = rospy.Service('read', ReadCmd, self.read)
+            self.seek_serv = rospy.Service('kill', KillCmd, self.kill)
         except Exception as e:
             raise Exception("Unable to register services to control Seek, Read or Kill: {}".format(e))
 
@@ -276,6 +277,7 @@ class PublicationControl(object):
     def _set_terminate( self, code, ex_str="" ):
         """sets termination flag, error code status and raises exception (if set)"""
         self.exit_status = code
+        self.term = True
         if ex_str:
             print "{}".format(ex_str)
 
@@ -297,7 +299,7 @@ class PublicationControl(object):
         ros if you want to do this repeatedly.
         """
 
-        t = cmd.##### RVN::FIX: SOMETHING!!!!
+        t = cmd.at_time_seconds
 
         dt = self.bag_reader.clock_out.to_sec()-self.bag_reader.bag.get_start_time()
         rospy.loginfo("recieved 'seek' signal after {} sec of playback. Seeking to {}".format( dt ,t))
@@ -327,7 +329,7 @@ class PublicationControl(object):
         this method. This ensures that an initial re-seek back to 0 does not befoul the 
         tf tree.
         """
-        duration = cmd.##### RVN::FIX: SOMETHING!!
+        duration = cmd.duration_seconds
 
         if self._initial_seek_lock: return 0.0
 
@@ -374,12 +376,12 @@ def main():
 
     # We need to change the time -- ROS cannot use wall-time for this publication
     # RVN::FIX: check and confirm this is ok
-    rospy.loginfo("****** Getting main Glib loop object ******")
-    try:
-        loop = GLib.MainLoop()
-    except Exception as e:
-        rospy.logerr("Unable to create GLib.MainLoop!")
-        return ExitStatus.PUB_FAIL
+    # rospy.loginfo("****** Getting main Glib loop object ******")
+    # try:
+    #     loop = GLib.MainLoop()
+    # except Exception as e:
+    #     rospy.logerr("Unable to create GLib.MainLoop!")
+    #     return ExitStatus.PUB_FAIL
 
     rospy.loginfo("****** Creating Publication Control Object *****")
     try:
@@ -387,27 +389,35 @@ def main():
     except Exception as e:
         rospy.logerr("{}".format(e))
         return ExitStatus.PUB_FAIL
+    rospy.loginfo("***** Done *****")
 
-    rospy.loginfo("***** starting d-bus service... *****")
-    try:
-        session_bus = SessionBus()
-    except Exception as e:
-        rospy.logerr("Unable to create the session dbus")
-        return ExitStatus.PUB_FAIL
+    rospy.loginfo("***** Running the main ros loop *****")
+    while not rospy.is_shutdown() and not pub.term:
+        time.sleep(0.5)
 
-    rospy.loginfo("***** created the session d-bus object *****")
+    rospy.loginfo("***** Main Loop Terminated *****")
 
-    try:
-        session_bus.publish( service_name, pub )
-    except Exception as e:
-        rospy.logerr("Unable to set up session dbus: {}".format(e))
-        return ExitStatus.PUB_FAIL
+
+    # rospy.loginfo("***** starting d-bus service... *****")
+    # try:
+    #     session_bus = SessionBus()
+    # except Exception as e:
+    #     rospy.logerr("Unable to create the session dbus")
+    #     return ExitStatus.PUB_FAIL
+
+    # rospy.loginfo("***** created the session d-bus object *****")
+
+    # try:
+    #     session_bus.publish( service_name, pub )
+    # except Exception as e:
+    #     rospy.logerr("Unable to set up session dbus: {}".format(e))
+    #     return ExitStatus.PUB_FAIL
     
-    rospy.loginfo("***** published to the '{}' dbus ******".format(service_name))
-    rospy.loginfo("***** running the main loop... *****")
+    # rospy.loginfo("***** published to the '{}' dbus ******".format(service_name))
+    # rospy.loginfo("***** running the main loop... *****")
 
-    loop.run()
-    rospy.loginfo("***** ...finished d-bus service *****")
+    # loop.run()
+    # rospy.loginfo("***** ...finished d-bus service *****")
 
     return pub.exit_status
 
