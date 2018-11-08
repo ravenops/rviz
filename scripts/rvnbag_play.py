@@ -367,8 +367,13 @@ def main():
         return ExitStatus.PUB_FAIL
 
     rospy.loginfo("starting d-bus service...")
-    session_bus = SessionBus()
-    session_bus.publish( service_name, pub )
+    try:
+        session_bus = SessionBus()
+        session_bus.publish( service_name, pub )
+    except Exception as e:
+        rospy.logerr("Unable to set up session dbus: {}".format(e))
+        return ExitStatus.PUB_FAIL
+
     loop.run()
     rospy.loginfo("...finished d-bus service")
 
