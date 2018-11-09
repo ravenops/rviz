@@ -35,9 +35,9 @@
 
 #include <QScreen>
 #include <QWindow>
-#include <QtDBus/QtDBus>
 
 #include <ros/time.h>
+#include <ros/ros.h>
 
 #include "rviz/bit_allocator.h"
 #include "rviz/config.h"
@@ -402,7 +402,7 @@ protected:
   QScreen* screen_;
   QWindow* window_;
   DumpImagesConfig* dump_images_config_;
-  QDBusInterface* dbus_;
+  ros::ServiceClient* ros_service_client_;
 
 private Q_SLOTS:
   void updateFixedFrame();

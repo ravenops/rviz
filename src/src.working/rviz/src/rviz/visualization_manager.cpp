@@ -216,27 +216,31 @@ VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesC
 
   if (dump_images_config_ != NULL && dump_images_config_->enabled) 
   {
-    if (!QDBusConnection::sessionBus().isConnected()) {
-      ROS_ERROR(
-        "%s\n%s\t%s", 
-        "Cannot connect to the D-Bus session bus.",
-        "To start it, run:",
-        "eval `dbus-launch --auto-syntax`"
-      );
-      exit(EXIT_FAILURE);
-    }
-    QString rvn_service_name = QString(RVN_SERVICE_NAME);
-    QString dbusPath = QString(rvn_service_name).replace(".","/").prepend("/");
-    dbus_ = new QDBusInterface(rvn_service_name, dbusPath,  rvn_service_name);
+    ros::NodeHandle n;
+
+    // DELANEY FIXME
+    // ros_service_client_ = n.serviceClient
+    // if (!QDBusConnection::sessionBus().isConnected()) {
+    //   ROS_ERROR(
+    //     "%s\n%s\t%s", 
+    //     "Cannot connect to the D-Bus session bus.",
+    //     "To start it, run:",
+    //     "eval `dbus-launch --auto-syntax`"
+    //   );
+    //   exit(EXIT_FAILURE);
+    // }
+    // QString rvn_service_name = QString(RVN_SERVICE_NAME);
+    // QString dbusPath = QString(rvn_service_name).replace(".","/").prepend("/");
+    // dbus_ = new QDBusInterface(rvn_service_name, dbusPath,  rvn_service_name);
     
-    if(dbus_ == NULL || !dbus_->isValid())
-    {
-      ROS_ERROR("NO DBus ros bag player in dump images mode, can't continue.");
-      dbus_ == NULL;
-      exit(EXIT_FAILURE);
-    }
+    // if(dbus_ == NULL || !dbus_->isValid())
+    // {
+    //   ROS_ERROR("NO DBus ros bag player in dump images mode, can't continue.");
+    //   dbus_ == NULL;
+    //   exit(EXIT_FAILURE);
+    // }
     
-    ROS_INFO("dbus setup, ready");
+    // ROS_INFO("dbus setup, ready");
   }
     
   update_timer_ = new QTimer;
@@ -270,9 +274,9 @@ VisualizationManager::~VisualizationManager()
   Ogre::Root::getSingletonPtr()->removeFrameListener( ogre_render_queue_clearer_ );
   delete ogre_render_queue_clearer_;
 
-  if(dbus_)
+  if(ros_service_client_)
   {
-    delete dbus_;
+    delete ros_service_client_;
   }
 }
 
@@ -423,20 +427,19 @@ void VisualizationManager::onUpdate()
   if(shouldDump)
   {
     // ROS_INFO("<%d> wall clock %f", uint(frame_count_), last_update_wall_time_.toSec());
-
-    if(dump_images_config_->bagDuration == 0 && frame_count_ > dump_images_config_->delayFrames)
-    {
-      QDBusReply<double> reply = dbus_->call("seek", 0.0);
-      if (!reply.isValid())
-      { 
-        ROS_ERROR("lastTimeSeconds error: '%s'", reply.error().message().toStdString().c_str());
-        exit(EXIT_FAILURE);
-      }
-      dump_images_config_->bagDuration = reply.value();
-      ROS_INFO("Bag duration %f seconds.", dump_images_config_->bagDuration);
-      nextFrame();
-      // should_render = true;
-    }
+    // DELANEY FIXME
+    // if(dump_images_config_->bagDuration == 0 && frame_count_ > dump_images_config_->delayFrames)
+    // {
+    //   QDBusReply<double> reply = dbus_->call("seek", 0.0);
+    //   if (!reply.isValid())
+    //   { 
+    //     ROS_ERROR("lastTimeSeconds error: '%s'", reply.error().message().toStdString().c_str());
+    //     exit(EXIT_FAILURE);
+    //   }
+    //   dump_images_config_->bagDuration = reply.value();
+    //   ROS_INFO("Bag duration %f seconds.", dump_images_config_->bagDuration);
+    //   nextFrame();
+    // }
     
     if(rosTime >= dump_images_config_->lastEventTime) {
       nextFrame();
@@ -488,40 +491,42 @@ void VisualizationManager::onUpdate()
         QMessageBox::critical(window_manager_->getParentWindow(), "Error", error_message);
       }
 
-      if (  dump_images_config_->nextTime > dump_images_config_->bagDuration )
-      {
-        ROS_INFO(
-          "Finished dumping %f second bag with %d frames.", 
-          dump_images_config_->bagDuration, uint(dumped_frame_count_)
-        );
+      // DELANEY FIXME
+      // if (  dump_images_config_->nextTime > dump_images_config_->bagDuration )
+      // {
+      //   ROS_INFO(
+      //     "Finished dumping %f second bag with %d frames.", 
+      //     dump_images_config_->bagDuration, uint(dumped_frame_count_)
+      //   );
 
-        dbus_->call("kill");
-        exit(EXIT_SUCCESS);
-      }
+      //   dbus_->call("kill");
+      //   exit(EXIT_SUCCESS);
+      // }
     }
   }
 }
 
 void VisualizationManager::nextFrame()
 {
-  QDBusReply<double> reply = dbus_->call("read", dump_images_config_->frameWidth);
-  if (!reply.isValid())
-  {
-    ROS_ERROR(
-        "Reply for frame width not valid, can't continue. '%s'",
-        reply.error().message().toStdString().c_str());
-    exit(EXIT_FAILURE);
-  }
+  // DELANEY FIXME
+  // QDBusReply<double> reply = dbus_->call("read", dump_images_config_->frameWidth);
+  // if (!reply.isValid())
+  // {
+  //   ROS_ERROR(
+  //       "Reply for frame width not valid, can't continue. '%s'",
+  //       reply.error().message().toStdString().c_str());
+  //   exit(EXIT_FAILURE);
+  // }
 
-  dump_images_config_->lastEventTime = reply.value();
-  double previous = dump_images_config_->nextTime;
-  double next = dump_images_config_->nextTime + dump_images_config_->frameWidth;
+  // dump_images_config_->lastEventTime = reply.value();
+  // double previous = dump_images_config_->nextTime;
+  // double next = dump_images_config_->nextTime + dump_images_config_->frameWidth;
 
-  ROS_INFO(
-      "Pulling events from %f to %f",
-      previous, next);
+  // ROS_INFO(
+  //     "Pulling events from %f to %f",
+  //     previous, next);
 
-  dump_images_config_->nextTime = next;
+  // dump_images_config_->nextTime = next;
   startUpdate();
 }
 
