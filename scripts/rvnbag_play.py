@@ -27,14 +27,14 @@ from rosgraph_msgs.msg import Clock
 # from pydbus.generic import signal
 
 # service msg imports RNF::TODO: make `import *` when  complete
-import sys
-import os
-THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.join(THIS_DIR,'../../devel/lib/python2.7/dist-packages'))
-print os.environ['PYTHONPATH']
+# import sys
+# import os
+# THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+# sys.path.append(os.path.join(THIS_DIR,'../../devel/lib/python2.7/dist-packages'))
+# print os.environ['PYTHONPATH']
 
 
-#from rviz.srv import *
+from rvn_rviz_srvs.srv import *
 # from rviz.srv import Read
 # from rviz.srv import Kill
 

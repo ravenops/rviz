@@ -139,6 +139,7 @@ find_package(catkin REQUIRED COMPONENTS
   visualization_msgs
   urdfdom_headers
   message_generation
+  rvn_rviz_srvs
 )
 
 if(${tf_VERSION} VERSION_LESS "1.11.3")
