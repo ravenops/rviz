@@ -18,6 +18,7 @@ struct DumpImagesConfig {
   double bagDuration;
   double nextTime;
   double lastEventTime;
+  std::string dbusSessionName;
 };
 
 } // namespace rviz

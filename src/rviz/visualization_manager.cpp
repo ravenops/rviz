@@ -88,8 +88,6 @@
 #include "rviz/visualization_manager.h"
 #include "rviz/window_manager_interface.h"
 
-#define RVN_SERVICE_NAME "com.ravenops.rviz.LockStep"
-
 namespace rviz
 {
 
@@ -225,7 +223,7 @@ VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesC
       );
       exit(EXIT_FAILURE);
     }
-    QString rvn_service_name = QString(RVN_SERVICE_NAME);
+    QString rvn_service_name = QString(dump_images_config_->dbusSessionName.c_str());
     QString dbusPath = QString(rvn_service_name).replace(".","/").prepend("/");
     dbus_ = new QDBusInterface(rvn_service_name, dbusPath,  rvn_service_name);
     

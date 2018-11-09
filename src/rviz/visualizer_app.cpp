@@ -62,7 +62,7 @@
 #include "rviz/visualizer_app.h"
 
 #define CATCH_EXCEPTIONS 0
-
+#define RVN_DEFAULT_SERVICE_NAME "com.ravenops.rviz.LockStep"
 namespace po = boost::program_options;
 
 namespace rviz
@@ -150,7 +150,8 @@ bool VisualizerApp::init(int argc, char **argv)
       ("dump-images", "On every screen render dump a jpg of contents.")
       ("dump-folder",po::value<std::string>()->default_value("dump"), "Sets the folder for dumped images.")
       ("dump-fps",po::value<float>()->default_value(30.0), "Frames per second for dumped images.  Can be floating point.")
-      ("dump-delay",po::value<float>()->default_value(1.5), "Delay X seconds until seeking bag file on DBus.");
+      ("dump-delay",po::value<float>()->default_value(1.5), "Delay X seconds until seeking bag file on DBus.")
+      ("dbus-session-name",po::value<std::string>()->default_value(RVN_DEFAULT_SERVICE_NAME),"Name of the DBus session to subscribe to");
 
     po::variables_map vm;
     std::string display_config, fixed_frame, splash_path, help_path, dump_folder;
@@ -251,7 +252,7 @@ bool VisualizerApp::init(int argc, char **argv)
         dump_images_config->delayFrames = uint(ceil(vm["dump-delay"].as<float>() * dump_images_config->fps));
         dump_images_config->bagDuration = 0;
         dump_images_config->nextTime = 0;
-
+        dump_images_config->dbusSessionName = vm["dbus-session-name"].as<std::string>();
         if(QDir().mkdir(QString::fromStdString(dump_images_config->folder)))
         {
           ROS_INFO("folder '%s' created for dumping images into.", dump_images_config->folder.c_str());
