@@ -141,6 +141,7 @@ find_package(catkin REQUIRED COMPONENTS
   message_generation
   rvn_rviz_srvs
 )
+add_dependencies( ${RVIZ} ${catkin_EXPORTED_TARGETS}) #--- RVN::FIX Connect To rvn_rviz_srvs!!!! need to know final executable name in this context!
 
 if(${tf_VERSION} VERSION_LESS "1.11.3")
   add_definitions("-DRVIZ_USE_BOOST_SIGNAL_1")
@@ -177,20 +178,7 @@ set(rviz_QT_VERSION ${QTVERSION})
 # There is a matching instance of this in the plugin_description.xml.
 set(rviz_DEFAULT_PLUGIN_LIBRARY_TARGET_NAME rviz_default_plugin)
 
-#find_package(
-#  add_service_files
-#  generate_messages
-#)
-
-# Declare the service files to be built
-add_service_files(
-  FILES
-  Seek.srv
-  Read.srv
-  Kill.srv
-)
-
-generate_messages(DEPENDENCIES std_msgs)
+# generate_messages(DEPENDENCIES std_msgs)
 
 catkin_package(
   CFG_EXTRAS
@@ -223,6 +211,7 @@ catkin_package(
     tf
     urdf
     visualization_msgs
+    rvn_rviz_srvs
 )
 
 include_directories(SYSTEM
