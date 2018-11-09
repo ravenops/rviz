@@ -27,9 +27,16 @@ from rosgraph_msgs.msg import Clock
 # from pydbus.generic import signal
 
 # service msg imports RNF::TODO: make `import *` when  complete
-from rviz.srv import Seek
-from rviz.srv import Read
-from rviz.srv import Kill
+import sys
+import os
+THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.join(THIS_DIR,'../../devel/lib/python2.7/dist-packages'))
+print os.environ['PYTHONPATH']
+
+
+#from rviz.srv import *
+# from rviz.srv import Read
+# from rviz.srv import Kill
 
 # define the dbus name and ROS publication node names
 service_name  = 'com.ravenops.rviz.LockStep'
@@ -395,7 +402,7 @@ def main():
     while not rospy.is_shutdown() and not pub.term:
         time.sleep(0.5)
 
-    rospy.loginfo("***** Main Loop Terminated *****")
+    rospy.loginfo("***** Main Loop Terminated ***** ")
 
 
     # rospy.loginfo("***** starting d-bus service... *****")

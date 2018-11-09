@@ -113,8 +113,7 @@ else()
 endif()
 add_definitions(-DQT_NO_KEYWORDS)
 
-find_package(catkin REQUIRED
-  COMPONENTS
+find_package(catkin REQUIRED COMPONENTS
   angles
   cmake_modules
   geometry_msgs
@@ -189,6 +188,7 @@ add_service_files(
   Read.srv
   Kill.srv
 )
+
 generate_messages(DEPENDENCIES std_msgs)
 
 catkin_package(
