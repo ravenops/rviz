@@ -347,14 +347,17 @@ def main():
     rospy.loginfo("***** Starting Raven[ops] ROS Bag Player ******") 
     verbose = False
     bagfile = ""
+    global service_name
     parser  = argparse.ArgumentParser() # RVN::FIX: usage=print_usage())
     parser.add_argument( '-b', '--bagfile', required=True, default="", help="complete bagfile path")
+    parser.add_argument( '-s', '--service_name', required=False, default=service_name, help="set the name of DBus service used to communicated with rvn-rviz")
     # parser.add_argument( '-v', '--verbose', help="select verbose output", action='store_true')
 
     args = parser.parse_args()
     if args.bagfile: bagfile = args.bagfile
+    if args.service_name: service_name = args.service_name
     # if args.verbose: verbose = True
-
+    print "Using DBus service name: %s" % (service_name)
     # We need to change the time -- ROS cannot use wall-time for this publication
     # RVN::FIX: check and confirm this is ok
     rospy.loginfo("****** Getting main Glib loop object ******")
