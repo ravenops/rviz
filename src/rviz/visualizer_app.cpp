@@ -150,7 +150,8 @@ bool VisualizerApp::init(int argc, char **argv)
       ("dump-images", "On every screen render dump a jpg of contents.")
       ("dump-folder",po::value<std::string>()->default_value("dump"), "Sets the folder for dumped images.")
       ("dump-fps",po::value<float>()->default_value(30.0), "Frames per second for dumped images.  Can be floating point.")
-      ("dump-delay",po::value<float>()->default_value(1.5), "Delay X seconds until seeking bag file on DBus.");
+      ("dump-delay",po::value<float>()->default_value(1.5), "Delay X seconds until seeking bag file on ros service layer.");
+      ("dump-id",po::value<std::string>(), "id to use on ros service layer.");
 
     po::variables_map vm;
     std::string display_config, fixed_frame, splash_path, help_path, dump_folder;
