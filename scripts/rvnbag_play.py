@@ -435,21 +435,8 @@ class PublicationControl(object):
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-_dbus_lockfile = "./.rvn.dbus.ready"
-
-def _rm_dbus_lockfile():
-    if os.path.isfile(_dbus_lockfile):
-        os.remove(_dbus_lockfile)
-
-def _create_dbus_lockfile():
-    with open(_dbus_lockfile, 'w'):
-        os.utime( _dbus_lockfile, None)
-
-
-
 def main():
     rospy.loginfo("Starting Raven[ops] ROS Bag Player") 
-    _rm_dbus_lockfile()
 
     verbose = False
     bagfile = ""
@@ -491,10 +478,6 @@ def main():
         rospy.logerr("Unable to set up session dbus: {}".format(e))
         return ExitStatus.PUB_FAIL
     
-    # RVN::TODO: This is a rather hacky solution, but solves the waiting for dbus problem before we spin up RVIZ
-    #            Once this file exists, the dbus is OK and the bag is loaded
-    _create_dbus_lockfile()
-
     rospy.loginfo("published to the '{}' dbus ".format(service_name))
     rospy.loginfo("running the main loop...")
 
