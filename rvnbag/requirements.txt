@@ -1,0 +1,10 @@
+# Raven[ bag-player ]
+#
+# Iain Brookshaw
+# Copyright (c) 2018, Raven Ops Inc., All Rights Reserved
+#
+# Raven Events Requirements File
+
+# RVN::TODO: rospy and rosbag are critical, but not pip packages
+
+dbus-python==1.2.4

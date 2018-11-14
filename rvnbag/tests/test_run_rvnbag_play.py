@@ -9,11 +9,11 @@ Unit Tests -- simple script to test running of the the rvnbag_play main function
 emulate the other end of the dbus
 """
 
-import rvnbag_play as rvn
+import rvnbag as rvn
 import os
 import sys
 
-from pydbus         import SessionBus
+from dbus         import SessionBus
 from gi.repository  import GLib
 
 

@@ -11,13 +11,16 @@ Unit Tests
 """
 
 import unittest
-import rospy
 import os
+
+import rospy
+from std_msgs.msg import Float64
+from rosgraph_msgs.msg import Clock
 
 import subprocess as sub
 import dbus
 
-import rvnbag_play as rvn
+import rvnbag as rvn
 _THIS_DIR   = os.path.dirname(os.path.abspath(__file__))
 float64bagfile = os.path.join(_THIS_DIR, "tests/testdata/float64.bag")
 
@@ -69,6 +72,7 @@ class TestBagReader( unittest.TestCase ):
 class TestPublicationControl( unittest.TestCase ):
 
     def _sub_cb( self, msg ):
+        self.frame.append(msg)
 
     def _clock_cb( self, msg ):
         self._last_clock = msg.clock
@@ -80,13 +84,13 @@ class TestPublicationControl( unittest.TestCase ):
         # RVN::NOTE: This is something of a hack, as testing seems to reset the env vars!
         env = dict(os.environ)
         env["PYTHONPATH"] = os.environ["PYTHONPATH"].split(":")[-1]
-        run = "roscore && python " + float64bagfile
-        cmd = sub.Popen( run, env=env, shell=True )
+        run = "roscore > /dev/null && python " + float64bagfile
+        self.cmd = sub.Popen( run, env=env, shell=True )
 
         # subscribe to the correct topic
-        self.sub = rospy.Subscriber("chatter", String, callback)
-        self.msg = None
-        self.msg_count = 0
+        self.msg_sub = rospy.Subscriber("/test/float64", Float64, self._sub_cb)
+        self.clk_sub = rospy.Subscriber("/clock",        Clock,   self._clock_cb)
+        self.frame = None
 
         # connect to the session bus
         session_bus = dbus.SessionBus()
@@ -97,6 +101,9 @@ class TestPublicationControl( unittest.TestCase ):
             self.proxy = bus.get_object(rvn.service_name, '/PublicationControl')
         except Exception as e:
             self.fail("Unable to get 'PublicationControl' at service {}: {}".format(rvn.service_name, e))
+
+    def tearDown( self ):
+        self.cmd.kill()
 
 
     def test_seek( self ):
@@ -120,10 +127,5 @@ class TestPublicationControl( unittest.TestCase ):
 
             self.assertTrue(self._last_clock, last_clock)
 
-            self.assertTrue(len(fr), 1)
+            self.assertTrue(len(self.frame), 1)
 
-
-
-
-
-    def tearDown( self ):
