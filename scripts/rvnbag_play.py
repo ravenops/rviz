@@ -11,6 +11,7 @@ Raven Rosbag player, using D-Bus to communicate to the RvnRviz renderer
 """
 
 # General Python Imports
+import os
 import time
 import argparse
 import threading
@@ -89,13 +90,10 @@ class BagReader(object):
         :params bagfile: str --- full path to the desired ROS bagfile
         :params delta:   rospy.Duration -- frame duration
         """
-        try:
-            self.bag   = rosbag.Bag(bagfile)
-        except Exception as e:
-            raise Exception("Unable to load bagfile from path '{}': {}".format(bagfile,e))
+        self.bagfile = bagfile
+        self.bag     = None #rosbag.Bag(bagfile)
 
         self._latching_status = {}
-        self.reseek( 0 )
         self.clock_out = rospy.Time(0)
 
 
@@ -138,8 +136,19 @@ class BagReader(object):
         return True
 
 
+    def load_bag( self ):
+        """This could be slow"""
+        self.bag = rosbag.Bag(self.bagfile)
+        self.reseek( 0 )
+
+
     def reseek( self, seek_point ):
         """ stops the current itteration and resets the read loop criteria. input time is from start of bag not Unix time"""
+        if not self.bag:
+            print "****** Trying to reseek to {}, but bag is not loaded!".format(seek_point)
+        #     time.sleep(1.0)
+        #     rospy.loginfo("Waiting for bag to load")
+
         if type(seek_point) is float or type(seek_point) is int: 
             seek_point = seek_point + self.bag.get_start_time()
             seek_point = rospy.Time(seek_point)
@@ -160,6 +169,8 @@ class BagReader(object):
 
     def get_next_frame( self, duration ):
         """ loop over all messages in bag. Loop start defined by 'reseek()' """
+        # if not self.bag: return []
+
         if type(duration) is float:
             duration = rospy.Duration(duration)
         
@@ -227,8 +238,12 @@ class PublicationControl(object):
         self._clock_publisher = rospy.Publisher("/clock", Clock, queue_size=100)
 
         # set bag to start
-        self.bag_reader.reseek( 0 )
         self._initial_seek_lock = True
+
+
+    def load_bag( self ):
+        """ do the lengthy bag loading process later """
+        self.bag_reader.load_bag()
 
 
     def _create_publisher( self, msg_cont ):
@@ -386,6 +401,21 @@ def main():
         rospy.logerr("Unable to set up session dbus: {}".format(e))
         return ExitStatus.PUB_FAIL
     
+    rospy.loginfo("***** loading rosbag ... *****")
+    bstart = time.time()
+    try:
+        pub.load_bag()
+    except Exception as e:
+        rospy.logerr("Unable to load bag: {}".format(e))
+
+    rospy.loginfo("****** ...done, took {} seconds".format(time.time()-bstart))
+
+    # RVN::TODO: This is a rather hacky solution, but solves the waiting for dbus problem before we spin up RVIZ
+    #            Once this file exists, the dbus is OK and the bag is loaded
+    hack_path = "./.rvn.dbus.ready"
+    with open(hack_path, 'w'):
+        os.utime( hack_path, None)
+
     rospy.loginfo("***** published to the '{}' dbus ******".format(service_name))
     rospy.loginfo("***** running the main loop... *****")
 
