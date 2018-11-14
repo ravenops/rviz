@@ -426,12 +426,14 @@ void VisualizationManager::onUpdate()
 
     if(dump_images_config_->bagDuration == 0 && frame_count_ > dump_images_config_->delayFrames)
     {
-      QDBusReply<double> reply = dbus_->call("seek", 0.0);
+      ROS_INFO("Re-Seeking to start of the bag, this may take a few seconds as bag loads...");
+      QDBusReply<double> reply = dbus_->call("seek", 0.0, (double)30.0); // RVN::FIX: hardcoded timeout here to 30 seconds
       if (!reply.isValid())
       { 
         ROS_ERROR("lastTimeSeconds error: '%s'", reply.error().message().toStdString().c_str());
         exit(EXIT_FAILURE);
       }
+      ROS_INFO("...Re-Seek done.");
       dump_images_config_->bagDuration = reply.value();
       ROS_INFO("Bag duration %f seconds.", dump_images_config_->bagDuration);
       nextFrame();
@@ -504,7 +506,7 @@ void VisualizationManager::onUpdate()
 
 void VisualizationManager::nextFrame()
 {
-  QDBusReply<double> reply = dbus_->call("read", dump_images_config_->frameWidth);
+  QDBusReply<double> reply = dbus_->call("read", dump_images_config_->frameWidth, (double)30.0); // RVN::FIX: Hardcoded timeout here to 30.0 seconds
   if (!reply.isValid())
   {
     ROS_ERROR(

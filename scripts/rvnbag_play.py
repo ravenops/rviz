@@ -89,10 +89,13 @@ class BagReader(object):
         :params bagfile: str --- full path to the desired ROS bagfile
         :params delta:   rospy.Duration -- frame duration
         """
-        try:
-            self.bag   = rosbag.Bag(bagfile)
-        except Exception as e:
-            raise Exception("Unable to load bagfile from path '{}': {}".format(bagfile,e))
+    
+        # start the bag loading thread
+        bag_load_thread   = threading.Thread(target=self.load_bagfile, args=(bagfile,))
+        self._bag_ok_lock = threading.Lock() # do not access without accessor methods!
+        self._bag         = None             # do not access without accessor methods!
+        self._bag_ok      = False            # do not access without accessor methods!
+        bag_load_thread.start()
 
         self._latching_status = {}
         self.reseek( 0 )
@@ -105,10 +108,84 @@ class BagReader(object):
         else:
             return True
 
+    def load_bagfile( self, bagfilename ):
+        """ seperate thread function for bag loading """
+
+        self._bag_ok_lock.acquire()
+        self._bag_ok = False
+        self._bag_ok_lock.release()
+
+        try:
+            self._bag = rosbag.Bag(bagfilename)
+        except Exception as e:
+            raise Exception("unable to load bagfile from path '{}': {}".format(bagfilename,e))
+
+        self._bag_ok_lock.acquire()
+        self._bag_ok = True
+        self._bag_ok_lock.release()
+
+
+    def get_bag( self ):
+        """returns None if not ok """
+        ok = False
+        self._bag_ok_lock.acquire()
+        ok = self._bag_ok
+        if not self._bag:
+            ok = False
+        self._bag_ok_lock.release()
+
+        if not ok:
+            return None
+
+        return self._bag
+
+
+    def get_start_time( self ):
+        t = 0.0
+        self._bag_ok_lock.acquire()
+        if self._bag_ok: t = self._bag.get_start_time()
+        self._bag_ok_lock.release()
+        return t
+
+
+    def get_start_time( self ):
+        t = 0.0
+        self._bag_ok_lock.acquire()
+        if self._bag_ok: t = self._bag.get_end_time()
+        self._bag_ok_lock.release()
+        return t
+
+
+    def is_bag_ok( self ):
+
+        self._bag_ok_lock.acquire()
+        if not self._bag_ok:
+            ok = False
+        else:
+            ok = True
+        self._bag_ok_lock.release()
+        return ok
+
+
+    def wait_for_bag( self, timeout, dt=0.25 ):
+        """ hold for bag to be ok or timeout exipires. Returns False if timeout expires, True once Bag is Ok """
+        start = time.time()
+        while not self.is_bag_ok():
+            
+            if timeout < time.time()-start:
+                return False
+
+            time.sleep(dt)
+
+        return True
+
 
     def get_duration( self ):
         """returns the duration of the bag in seconds"""
-        return self.bag.get_end_time() - self.bag.get_start_time()
+        bag = self.get_bag()
+        if not bag: return 0.0
+
+        return bag.get_end_time() - bag.get_start_time()
 
 
     def is_latched(self, topic):
@@ -138,28 +215,42 @@ class BagReader(object):
         return True
 
 
-    def reseek( self, seek_point ):
+    def reseek( self, seek_point, timeout=30.0 ):
         """ stops the current itteration and resets the read loop criteria. input time is from start of bag not Unix time"""
+
+        # wait until bag is OK
+        if not self.wait_for_bag(timeout):
+            raise Exception("Timeout of {} seconds expired before the bag loaded!".format(timeout))
+
+        bag = self.get_bag()
+        if not bag:
+            raise Exception("Unable to get bag")
+
         if type(seek_point) is float or type(seek_point) is int: 
-            seek_point = seek_point + self.bag.get_start_time()
+            seek_point = seek_point + bag.get_start_time()
             seek_point = rospy.Time(seek_point)
 
-        if rospy.Time(self.bag.get_end_time()) <= seek_point:
-            raise Exception("A seek point of {} is greater than the end of bag: {}".format(seek_point, self.bag.get_end_time()))
+        if rospy.Time(bag.get_end_time()) <= seek_point:
+            raise Exception("A seek point of {} is greater than the end of bag: {}".format(seek_point, bag.get_end_time()))
 
         self._frame_end = seek_point
-        self._generator = self.bag.read_messages(
+        self._generator = bag.read_messages(
             raw        = True,
             start_time = seek_point, 
-            end_time   = rospy.Time(self.bag.get_end_time()),
+            end_time   = rospy.Time(bag.get_end_time()),
             connection_filter = self._header_callback )
 
         # reset clock
         self.clock_out = seek_point
 
 
-    def get_next_frame( self, duration ):
+    def get_next_frame( self, duration, timeout=30.0 ):
         """ loop over all messages in bag. Loop start defined by 'reseek()' """
+
+        # wait until bag is OK
+        if not self.wait_for_bag(timeout):
+            raise Exception("Timout of {} seconds expired before bag loaded!".format(timeout))
+
         if type(duration) is float:
             duration = rospy.Duration(duration)
         
@@ -187,27 +278,29 @@ class PublicationControl(object):
             <interface name='{}'>
             <method name='kill'/>
             <method name='seek'>
-                <arg type='d' name='at_time_seconds' direction='in'/>
+                <arg type='d' name='at_time_seconds' direction='in' />
+                <arg type='d' name='timeout'         direction='in' />
                 <arg type='d' name='seek_return'     direction='out'/>
             </method>
             <method name='read'>
-                <arg type='d' name='duration_seconds'   direction='in'/>
+                <arg type='d' name='duration_seconds'   direction='in' />
+                <arg type='d' name='timeout'            direction='in' />
                 <arg type='d' name='last_ros_clock_msg' direction='out'/>
             </method>
-            <property name="current_time" type="d" access="read">
+            <property   name="current_time" type="d" access="read">
             <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
             </property>
             </interface>
         </node>
     """.format(service_name)
 
-    def __init__( self, bagfile,loop):
+    def __init__( self, bagfile, loop):
 
         self.exit_status     = ExitStatus.OK
         self._all_publishers = {}
         self._last_ros_clock_msg = None
-        self._loop = loop
-
+        self._loop = loop #used to issue quit command to kill
+ 
         try:
             rospy.init_node( ros_node_name, anonymous=True )
         except Exception as e:
@@ -227,7 +320,6 @@ class PublicationControl(object):
         self._clock_publisher = rospy.Publisher("/clock", Clock, queue_size=100)
 
         # set bag to start
-        self.bag_reader.reseek( 0 )
         self._initial_seek_lock = True
 
 
@@ -274,7 +366,7 @@ class PublicationControl(object):
         self._loop.quit()
 
 
-    def seek( self, t ):
+    def seek( self, t, timeout ):
         """
         d-bus method to terminate the read loop and seek to t seconds from start of bag(or as close as possible)
         returns the length of the bag in seconds.
@@ -283,15 +375,14 @@ class PublicationControl(object):
         (especially the tf tree!). The seek lock allows you to do this once, but you really should restart
         ros if you want to do this repeatedly.
         """
-
-        dt = self.bag_reader.clock_out.to_sec()-self.bag_reader.bag.get_start_time()
+        dt = self.bag_reader.clock_out.to_sec()-self.bag_reader.get_start_time()
         rospy.loginfo("recieved 'seek' signal after {} sec of playback. Seeking to {}".format( dt ,t))
 
         if t < dt and not self._initial_seek_lock:
             rospy.logwarn("You are attempting to perform a seek back in time. This *may* cause problems with existing TF trees")
         
         try:
-            self.bag_reader.reseek(t)
+            self.bag_reader.reseek(t, timeout=timeout)
         except Exception as e:
             rospy.logerr("Unable To Seek! {}".format(e))
 
@@ -302,7 +393,7 @@ class PublicationControl(object):
         return self.bag_reader.get_duration()
 
 
-    def read( self, duration ):
+    def read( self, duration, timeout ):
         """
         d-bus method to read and publish the frame over duration. 
         generates a frame over the period of duration, which is then published to the ROS graph. 
@@ -312,6 +403,7 @@ class PublicationControl(object):
         this method. This ensures that an initial re-seek back to 0 does not befoul the 
         tf tree.
         """
+        print "*** Have read signal"
         if self._initial_seek_lock: return 0.0
 
         old_clock = rospy.Time(0)
@@ -324,9 +416,9 @@ class PublicationControl(object):
        
         # get the frame
         try:
-            frame = self.bag_reader.get_next_frame( duration )
+            frame = self.bag_reader.get_next_frame( duration, timeout=timeout )
         except Exception as e:
-            rospy.logerr("{}".format(e))
+            rospy.logerr("unable to get next frame: {}".format(e))
             return clock_msg.clock.to_sec()
         
         # publish the message
@@ -344,41 +436,40 @@ class PublicationControl(object):
 
 # ----------------------------------------------------------------------------------------------------------------------
 def main():
-    rospy.loginfo("***** Starting Raven[ops] ROS Bag Player ******") 
+    rospy.loginfo("Starting Raven[ops] ROS Bag Player") 
     verbose = False
     bagfile = ""
-    parser  = argparse.ArgumentParser() # RVN::FIX: usage=print_usage())
-    parser.add_argument( '-b', '--bagfile', required=True, default="", help="complete bagfile path")
-    # parser.add_argument( '-v', '--verbose', help="select verbose output", action='store_true')
+    parser  = argparse.ArgumentParser()
+    parser.add_argument( '-b', '--bagfile', required=True, default="",    help="complete bagfile path")
+    parser.add_argument( '-v', '--verbose',                default=False, help="select verbose output", action='store_true')
 
     args = parser.parse_args()
     if args.bagfile: bagfile = args.bagfile
-    # if args.verbose: verbose = True
+    if args.verbose: verbose = True # RVN::TODO: Not connected
 
-    # We need to change the time -- ROS cannot use wall-time for this publication
-    # RVN::FIX: check and confirm this is ok
-    rospy.loginfo("****** Getting main Glib loop object ******")
+
+    rospy.loginfo("Getting main Glib loop object")
     try:
         loop = GLib.MainLoop()
     except Exception as e:
         rospy.logerr("Unable to create GLib.MainLoop!")
         return ExitStatus.PUB_FAIL
 
-    rospy.loginfo("****** Creating Publication Control Object *****")
+    rospy.loginfo("Creating Publication Control Object")
     try:
         pub = PublicationControl( bagfile, loop )
     except Exception as e:
         rospy.logerr("{}".format(e))
         return ExitStatus.PUB_FAIL
 
-    rospy.loginfo("***** starting d-bus service... *****")
+    rospy.loginfo( "starting d-bus service...")
     try:
         session_bus = SessionBus()
     except Exception as e:
         rospy.logerr("Unable to create the session dbus")
         return ExitStatus.PUB_FAIL
 
-    rospy.loginfo("***** created the session d-bus object *****")
+    rospy.loginfo("created the session d-bus object")
 
     try:
         session_bus.publish( service_name, pub )
@@ -386,11 +477,11 @@ def main():
         rospy.logerr("Unable to set up session dbus: {}".format(e))
         return ExitStatus.PUB_FAIL
     
-    rospy.loginfo("***** published to the '{}' dbus ******".format(service_name))
-    rospy.loginfo("***** running the main loop... *****")
+    rospy.loginfo("published to the '{}' dbus ".format(service_name))
+    rospy.loginfo("running the main loop...")
 
     loop.run()
-    rospy.loginfo("***** ...finished d-bus service *****")
+    rospy.loginfo("...finished d-bus service")
 
     return pub.exit_status
 
