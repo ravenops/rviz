@@ -346,8 +346,6 @@ protected Q_SLOTS:
 
   void onToolChanged( Tool* );
 
-  void onFoundDbusService();
-
 protected:
   void updateTime();
   void updateFrames();
@@ -405,9 +403,6 @@ protected:
   QWindow* window_;
   DumpImagesConfig* dump_images_config_;
   QDBusInterface* dbus_;
-  bool found_dbus_service;
-  QDBusServiceWatcher* dbus_watcher_;
-
 
 private Q_SLOTS:
   void updateFixedFrame();

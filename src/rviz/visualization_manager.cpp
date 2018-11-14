@@ -229,25 +229,38 @@ VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesC
     QString rvn_service_name = QString(RVN_SERVICE_NAME);
     QString dbusPath = QString(rvn_service_name).replace(".","/").prepend("/");
 
-    // wait for the rvnbag_play script to create a dbus with the RVN_SERVICE_NAME
-    this->found_dbus_service = false;
-    dbus_watcher_ = new QDBusServiceWatcher( rvn_service_name, QDBusConnection::sessionBus(), QDBusServiceWatcher::WatchForRegistration );
-
-    // connect onFoundDbusService to the slot for Watch for Registration signal
-    connect( dbus_watcher_, &QDBusServiceWatcher::serviceRegistered, this, &VisualizationManager::onFoundDbusService); ///// RVN::FIX: CALLBACK NEVER OCCURS!! EVEN WHEN RUNNING!!
-
-    int max_tries = 100;
+    int sleep_sec = 1;
+    int max_tries = sleep_sec * 30; //RVN::TODO: Timeout is arbitrary and hard-coded for now.
     int tries = 0;
-    while( !this->found_dbus_service ){
-      usleep( 500 * 1e3 );
-      ROS_INFO("Rviz::visualization_manager: ...waiting for dbus service '%s' to appear", rvn_service_name.toStdString().c_str());
+    while( true ){
+
+      usleep( sleep_sec * 1e6 );
+      ROS_INFO("Rviz::visualization_manager: waiting for dbus service '%s' to appear (attempt %d of %d)...", rvn_service_name.toStdString().c_str(), tries+1, max_tries);
       tries++;
 
       if( max_tries < tries ){
         ROS_ERROR("Rviz::visualization_manager: Unable to find service '%s' on dbus after %d tries.", rvn_service_name.toStdString().c_str(), tries);
         exit(EXIT_FAILURE);
       }
-    }
+    
+      QDBusReply<QStringList> reply = QDBusConnection::sessionBus().interface()->registeredServiceNames();
+      if (!reply.isValid()) {
+          ROS_ERROR("Rviz::visualization_manager: Unable to get session bust list: %s",reply.error().message().toStdString().c_str());
+          exit(EXIT_FAILURE);
+      }
+
+      bool have_service = false;
+      for( QString name: reply.value() ){
+        if( rvn_service_name == name ){
+          have_service = true;
+          ROS_INFO("RViz::visualization_manager: Have dbus service '%s'",rvn_service_name.toStdString().c_str());
+          break;
+        }
+      }
+
+      if( have_service ) break;
+      ROS_WARN("Rviz::visualization_manager: ... service '%s' not found",rvn_service_name.toStdString().c_str());
+  }
 
     // connect to the dbus, should be there
     dbus_ = new QDBusInterface(rvn_service_name, dbusPath,  rvn_service_name);
@@ -296,10 +309,6 @@ VisualizationManager::~VisualizationManager()
   if(dbus_)
   {
     delete dbus_;
-  }
-  if(dbus_watcher_)
-  {
-    delete dbus_watcher_;
   }
 }
 
@@ -768,12 +777,6 @@ void VisualizationManager::notifyConfigChanged()
 
 void VisualizationManager::onToolChanged( Tool* tool )
 {
-}
-
-void VisualizationManager::onFoundDbusService()
-{
-  this->found_dbus_service = true;
-  ROS_INFO("****************** HAVE FOUND DBUS SERVICE *******************");
 }
 
 void VisualizationManager::updateFixedFrame()

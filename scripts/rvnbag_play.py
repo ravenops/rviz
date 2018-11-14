@@ -403,7 +403,6 @@ class PublicationControl(object):
         this method. This ensures that an initial re-seek back to 0 does not befoul the 
         tf tree.
         """
-        print "*** Have read signal"
         if self._initial_seek_lock: return 0.0
 
         old_clock = rospy.Time(0)
