@@ -542,7 +542,7 @@ void VisualizationManager::onUpdate()
 
 void VisualizationManager::nextFrame()
 {
-  QDBusReply<double> reply = dbus_->call("read", dump_images_config_->frameWidth, 30.0);
+  QDBusReply<double> reply = dbus_->call("read", dump_images_config_->frameWidth, dump_images_config_->timeout);
   if (!reply.isValid())
   {
     ROS_ERROR(

@@ -3,7 +3,6 @@
 Raven[ player ]
 
 Iain Brookshaw
-2018.10.30
 Copyright (c) 2018, Raven Ops Inc., All Rights Reserved
 
 Raven Rosbag player, using D-Bus to communicate to the RvnRviz renderer
