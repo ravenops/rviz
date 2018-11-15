@@ -542,7 +542,7 @@ void VisualizationManager::onUpdate()
 
 void VisualizationManager::nextFrame()
 {
-  QDBusReply<double> reply = dbus_->call("read", dump_images_config_->frameWidth, (double)30.0); // RVN::FIX: Hardcoded timeout here to 30.0 seconds
+  QDBusReply<double> reply = dbus_->call("read", dump_images_config_->frameWidth, 30.0);
   if (!reply.isValid())
   {
     ROS_ERROR(
