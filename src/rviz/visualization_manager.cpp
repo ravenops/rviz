@@ -225,8 +225,44 @@ VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesC
       );
       exit(EXIT_FAILURE);
     }
+
     QString rvn_service_name = QString(RVN_SERVICE_NAME);
     QString dbusPath = QString(rvn_service_name).replace(".","/").prepend("/");
+
+    int sleep_sec = 1;
+    int max_tries = sleep_sec * dump_images_config_->timeout;
+    int tries = 0;
+    while( true ){
+
+      usleep( sleep_sec * 1e6 );
+      ROS_INFO("Rviz::visualization_manager: waiting for dbus service '%s' to appear (attempt %d of %d)...", rvn_service_name.toStdString().c_str(), tries+1, max_tries);
+      tries++;
+
+      if( max_tries < tries ){
+        ROS_ERROR("Rviz::visualization_manager: Unable to find service '%s' on dbus after %d tries.", rvn_service_name.toStdString().c_str(), tries);
+        exit(EXIT_FAILURE);
+      }
+    
+      QDBusReply<QStringList> reply = QDBusConnection::sessionBus().interface()->registeredServiceNames();
+      if (!reply.isValid()) {
+          ROS_ERROR("Rviz::visualization_manager: Unable to get session bust list: %s",reply.error().message().toStdString().c_str());
+          exit(EXIT_FAILURE);
+      }
+
+      bool have_service = false;
+      for( QString name: reply.value() ){
+        if( rvn_service_name == name ){
+          have_service = true;
+          ROS_INFO("RViz::visualization_manager: Have dbus service '%s'",rvn_service_name.toStdString().c_str());
+          break;
+        }
+      }
+
+      if( have_service ) break;
+      ROS_WARN("Rviz::visualization_manager: ... service '%s' not found",rvn_service_name.toStdString().c_str());
+  }
+
+    // connect to the dbus, should be there
     dbus_ = new QDBusInterface(rvn_service_name, dbusPath,  rvn_service_name);
     
     if(dbus_ == NULL || !dbus_->isValid())
@@ -426,12 +462,14 @@ void VisualizationManager::onUpdate()
 
     if(dump_images_config_->bagDuration == 0 && frame_count_ > dump_images_config_->delayFrames)
     {
-      QDBusReply<double> reply = dbus_->call("seek", 0.0);
+      ROS_INFO("Re-Seeking to start of the bag, this may take a few seconds as bag loads...");
+      QDBusReply<double> reply = dbus_->call("seek", 0.0, (double)dump_images_config_->timeout);
       if (!reply.isValid())
       { 
         ROS_ERROR("lastTimeSeconds error: '%s'", reply.error().message().toStdString().c_str());
         exit(EXIT_FAILURE);
       }
+      ROS_INFO("...Re-Seek done.");
       dump_images_config_->bagDuration = reply.value();
       ROS_INFO("Bag duration %f seconds.", dump_images_config_->bagDuration);
       nextFrame();
@@ -504,7 +542,7 @@ void VisualizationManager::onUpdate()
 
 void VisualizationManager::nextFrame()
 {
-  QDBusReply<double> reply = dbus_->call("read", dump_images_config_->frameWidth);
+  QDBusReply<double> reply = dbus_->call("read", dump_images_config_->frameWidth, dump_images_config_->timeout);
   if (!reply.isValid())
   {
     ROS_ERROR(

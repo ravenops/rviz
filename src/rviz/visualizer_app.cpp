@@ -150,7 +150,8 @@ bool VisualizerApp::init(int argc, char **argv)
       ("dump-images", "On every screen render dump a jpg of contents.")
       ("dump-folder",po::value<std::string>()->default_value("dump"), "Sets the folder for dumped images.")
       ("dump-fps",po::value<float>()->default_value(30.0), "Frames per second for dumped images.  Can be floating point.")
-      ("dump-delay",po::value<float>()->default_value(1.5), "Delay X seconds until seeking bag file on DBus.");
+      ("dump-delay",po::value<float>()->default_value(1.5), "Delay X seconds until seeking bag file on DBus.")
+      ("dump-timeout",po::value<float>()->default_value(30), "Retry initial connection to DBus for X seconds failing.");
 
     po::variables_map vm;
     std::string display_config, fixed_frame, splash_path, help_path, dump_folder;
@@ -247,6 +248,7 @@ bool VisualizerApp::init(int argc, char **argv)
         dump_images_config->enabled = true;
         dump_images_config->folder = vm["dump-folder"].as<std::string>();
         dump_images_config->fps = vm["dump-fps"].as<float>();
+        dump_images_config->timeout = vm["dump-timeout"].as<float>();
         dump_images_config->frameWidth = 1 / dump_images_config->fps;
         dump_images_config->delayFrames = uint(ceil(vm["dump-delay"].as<float>() * dump_images_config->fps));
         dump_images_config->bagDuration = 0;
