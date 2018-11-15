@@ -230,7 +230,7 @@ VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesC
     QString dbusPath = QString(rvn_service_name).replace(".","/").prepend("/");
 
     int sleep_sec = 1;
-    int max_tries = sleep_sec * dump_images_config_->timeout; //RVN::TODO: Timeout is arbitrary and hard-coded for now.
+    int max_tries = sleep_sec * dump_images_config_->timeout;
     int tries = 0;
     while( true ){
 
