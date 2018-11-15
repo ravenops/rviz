@@ -12,6 +12,7 @@ struct DumpImagesConfig {
   bool enabled;
   std::string folder;
   float fps;
+  float timeout;
 
   uint delayFrames;
   double frameWidth;

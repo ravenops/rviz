@@ -230,7 +230,7 @@ VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesC
     QString dbusPath = QString(rvn_service_name).replace(".","/").prepend("/");
 
     int sleep_sec = 1;
-    int max_tries = sleep_sec * 30; //RVN::TODO: Timeout is arbitrary and hard-coded for now.
+    int max_tries = sleep_sec * dump_images_config_->timeout; //RVN::TODO: Timeout is arbitrary and hard-coded for now.
     int tries = 0;
     while( true ){
 
@@ -463,7 +463,7 @@ void VisualizationManager::onUpdate()
     if(dump_images_config_->bagDuration == 0 && frame_count_ > dump_images_config_->delayFrames)
     {
       ROS_INFO("Re-Seeking to start of the bag, this may take a few seconds as bag loads...");
-      QDBusReply<double> reply = dbus_->call("seek", 0.0, (double)30.0); // RVN::FIX: hardcoded timeout here to 30 seconds
+      QDBusReply<double> reply = dbus_->call("seek", 0.0, (double)dump_images_config_->timeout);
       if (!reply.isValid())
       { 
         ROS_ERROR("lastTimeSeconds error: '%s'", reply.error().message().toStdString().c_str());
