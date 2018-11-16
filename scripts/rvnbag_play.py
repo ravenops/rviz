@@ -119,8 +119,12 @@ class BagReader(object):
         except Exception as e:
             raise Exception("unable to load bagfile from path '{}': {}".format(bagfilename,e))
 
+        bagstate = False
+        if self._bag: bagstate = True
+        # RVN::TODO: Bag validation functions go here
+
         self._bag_ok_lock.acquire()
-        self._bag_ok = True
+        self._bag_ok = bagstate
         self._bag_ok_lock.release()
 
 
@@ -129,39 +133,43 @@ class BagReader(object):
         ok = False
         self._bag_ok_lock.acquire()
         ok = self._bag_ok
-        if not self._bag:
-            ok = False
         self._bag_ok_lock.release()
 
         if not ok:
             return None
-
-        return self._bag
+        else:
+            return self._bag
 
 
     def get_start_time( self ):
         t = 0.0
         self._bag_ok_lock.acquire()
-        if self._bag_ok: t = self._bag.get_start_time()
+        if self._bag_ok: bag = self._bag
         self._bag_ok_lock.release()
+
+        if bag:
+            t = self._bag.get_start_time()
+
         return t
 
 
-    def get_start_time( self ):
+    def get_end_time( self ):
         t = 0.0
         self._bag_ok_lock.acquire()
-        if self._bag_ok: t = self._bag.get_end_time()
+        if self._bag_ok: bag = self._bag
         self._bag_ok_lock.release()
+
+        if bag:
+            t = self._bag.get_end_time()
+
         return t
 
 
     def is_bag_ok( self ):
 
+        ok = False
         self._bag_ok_lock.acquire()
-        if not self._bag_ok:
-            ok = False
-        else:
-            ok = True
+        ok = self._bag_ok
         self._bag_ok_lock.release()
         return ok
 
@@ -181,10 +189,7 @@ class BagReader(object):
 
     def get_duration( self ):
         """returns the duration of the bag in seconds"""
-        bag = self.get_bag()
-        if not bag: return 0.0
-
-        return bag.get_end_time() - bag.get_start_time()
+        return self.get_end_time() - self.get_start_time()
 
 
     def is_latched(self, topic):
