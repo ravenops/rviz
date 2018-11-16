@@ -88,7 +88,26 @@
 #include "rviz/visualization_manager.h"
 #include "rviz/window_manager_interface.h"
 
+#include "rviz_video_encoder/video_encoder.h"
+
 #define RVN_SERVICE_NAME "com.ravenops.rviz.LockStep"
+
+// From Delaney:
+// The range of the CRF scale is 0–51, where 0 is lossless, 23 is the default,
+// and 51 is worst quality possible. A lower value generally leads to higher quality,
+// and a subjectively sane range is 17–28. Consider 17 or 18 to be visually lossless
+// or nearly so; it should look the same or nearly the same as the input but it isn't
+// technically lossless.
+// Generally deals with quality vs bitrate spectrum
+#define RVN_LIBAV_CRF 17.0
+
+// On quality vs speed spectrum, leaning towards speed
+#define RVN_LIBAV_PRESET "fast"
+
+// Maximum width of frames we run through x264 encoder
+// If input exceedes this width, the input resolution will be scaled to fit this width, perserving aspect ratio
+// before being x264 encoded
+#define RVN_LIBAV_MAXWIDTH 1920
 
 namespace rviz
 {
@@ -121,6 +140,10 @@ public:
   ros::NodeHandle update_nh_;
   ros::NodeHandle threaded_nh_;
   boost::mutex render_mutex_;
+  int venc_width_,venc_height_;
+  VideoEncoder *venc_,*venc_keyed_;
+  bool thumbnail_taken;
+  double bag_start;
 };
 
 VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesConfig* dump_images_config, WindowManagerInterface* wm, boost::shared_ptr<tf::TransformListener> tf )
@@ -207,18 +230,18 @@ VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesC
 
   ogre_render_queue_clearer_ = new OgreRenderQueueClearer();
   Ogre::Root::getSingletonPtr()->addFrameListener( ogre_render_queue_clearer_ );
-  
+
   dump_images_config_ = dump_images_config;
   screen_ = QGuiApplication::primaryScreen();
   window_ = window_manager_->getParentWindow()->windowHandle();
   if (window_)
     screen_ = window_->screen();
 
-  if (dump_images_config_ != NULL && dump_images_config_->enabled) 
+  if (dump_images_config_ != NULL && dump_images_config_->enabled)
   {
     if (!QDBusConnection::sessionBus().isConnected()) {
       ROS_ERROR(
-        "%s\n%s\t%s", 
+        "%s\n%s\t%s",
         "Cannot connect to the D-Bus session bus.",
         "To start it, run:",
         "eval `dbus-launch --auto-syntax`"
@@ -242,7 +265,7 @@ VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesC
         ROS_ERROR("Rviz::visualization_manager: Unable to find service '%s' on dbus after %d tries.", rvn_service_name.toStdString().c_str(), tries);
         exit(EXIT_FAILURE);
       }
-    
+
       QDBusReply<QStringList> reply = QDBusConnection::sessionBus().interface()->registeredServiceNames();
       if (!reply.isValid()) {
           ROS_ERROR("Rviz::visualization_manager: Unable to get session bust list: %s",reply.error().message().toStdString().c_str());
@@ -262,19 +285,21 @@ VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesC
       ROS_WARN("Rviz::visualization_manager: ... service '%s' not found",rvn_service_name.toStdString().c_str());
   }
 
+    // initialize video encoder
+    // RVN:TODO Params
     // connect to the dbus, should be there
     dbus_ = new QDBusInterface(rvn_service_name, dbusPath,  rvn_service_name);
-    
+
     if(dbus_ == NULL || !dbus_->isValid())
     {
       ROS_ERROR("NO DBus ros bag player in dump images mode, can't continue.");
       dbus_ == NULL;
       exit(EXIT_FAILURE);
     }
-    
+
     ROS_INFO("dbus setup, ready");
   }
-    
+
   update_timer_ = new QTimer;
   connect( update_timer_, SIGNAL( timeout() ), this, SLOT( onUpdate() ));
 }
@@ -346,7 +371,8 @@ ros::CallbackQueueInterface* VisualizationManager::getUpdateQueue()
 
 void VisualizationManager::startUpdate()
 {
-  float interval = 1000.0 / float(fps_property_->getInt());
+    //  float interval = 1000.0 / float(fps_property_->getInt());
+  float interval = 0.0;
   update_timer_->start( interval );
 }
 
@@ -449,13 +475,14 @@ void VisualizationManager::onUpdate()
   double rosTime = last_update_ros_time_.toSec();
 
   // ROS_INFO(
-  //   "fc:%d dc:%d delayFrame:%d bd:%f", 
+  //   "fc:%d dc:%d delayFrame:%d bd:%f",
   //   int(frame_count_), int(dumped_frame_count_),
   //     dump_images_config_->delayFrames,
   //     dump_images_config_->bagDuration
   //   );
 
   bool should_render = false;
+  boost::mutex::scoped_lock lock(private_->render_mutex_);
   if(shouldDump)
   {
     // ROS_INFO("<%d> wall clock %f", uint(frame_count_), last_update_wall_time_.toSec());
@@ -463,9 +490,9 @@ void VisualizationManager::onUpdate()
     if(dump_images_config_->bagDuration == 0 && frame_count_ > dump_images_config_->delayFrames)
     {
       ROS_INFO("Re-Seeking to start of the bag, this may take a few seconds as bag loads...");
-      QDBusReply<double> reply = dbus_->call("seek", 0.0, (double)dump_images_config_->timeout);
+      QDBusReply<double> reply = dbus_->call("seek", 0.0, dump_images_config_->timeout);
       if (!reply.isValid())
-      { 
+      {
         ROS_ERROR("lastTimeSeconds error: '%s'", reply.error().message().toStdString().c_str());
         exit(EXIT_FAILURE);
       }
@@ -473,10 +500,9 @@ void VisualizationManager::onUpdate()
       dump_images_config_->bagDuration = reply.value();
       ROS_INFO("Bag duration %f seconds.", dump_images_config_->bagDuration);
       nextFrame();
-      // should_render = true;
-    }
-    
-    if(rosTime >= dump_images_config_->lastEventTime) {
+      should_render = true;
+      private_->bag_start = dump_images_config_->lastEventTime;
+    }else if(rosTime >= dump_images_config_->lastEventTime) {
       nextFrame();
       should_render = true;
     }
@@ -487,54 +513,120 @@ void VisualizationManager::onUpdate()
       should_render = true;
     }
   }
-  
   if (should_render){
     render_requested_ = 0;
-    boost::mutex::scoped_lock lock(private_->render_mutex_);
     ogre_root_->renderOneFrame();
 
     if (shouldDump  && dump_images_config_->bagDuration > 0)
     {
       QPixmap screenshot_ = screen_->grabWindow(window_->winId());
-      QString filename;
-      filename.sprintf("%s/%08d.jpg", dump_images_config_->folder.c_str(), uint(++dumped_frame_count_));
+      QImage img = screenshot_.toImage();
 
-      QImageWriter writer(filename);
-      if (!writer.write(screenshot_.toImage()))
-      {
-        QString error_message;
-        if (writer.error() == QImageWriter::UnsupportedFormatError)
-        {
-          QString suffix = filename.section('.', -1);
-          QString formats_string;
-          QList<QByteArray> formats = QImageWriter::supportedImageFormats();
-          formats_string = formats[0];
-          for (int i = 1; i < formats.size(); i++)
-          {
-            formats_string += ", " + formats[i];
+      if ( private_->venc_ == NULL){
+          private_->venc_width_ = screenshot_.width();
+          private_->venc_height_ = screenshot_.height();
+
+          // RVN:FIXME implement more formats if needed
+          if ( img.format() != QImage::Format_RGB32 ){
+              ROS_ERROR("Detected unsupported screenshot image format: %u",img.format());
+              exit(EXIT_FAILURE);
           }
 
-          error_message =
-              "File type '" + suffix + "' is not supported.\n" +
-              "Supported image formats are: " + formats_string + "\n";
-        }
-        else
-        {
-          error_message = "Failed to write image to file " + filename;
-        }
+          ROS_INFO("Init rviz video encoder: %dx%d @ %d/%d fps, input format %d",private_->venc_width_,private_->venc_height_,
+                   dump_images_config_->fpsNum, dump_images_config_->fpsDen, img.format());
+          // this is the first frame- initialize encoders
+          VideoEncodeParams params = {0};
 
-        QMessageBox::critical(window_manager_->getParentWindow(), "Error", error_message);
+          params.width = private_->venc_width_;
+          params.height= private_->venc_height_;
+          params.fpsNum = dump_images_config_->fpsNum;
+          params.fpsDen = dump_images_config_->fpsDen;
+
+          // RVN:TODO expose as CLI parameters
+          params.crf = RVN_LIBAV_CRF;
+          params.preset = RVN_LIBAV_PRESET;
+          params.maxWidth = RVN_LIBAV_MAXWIDTH;
+
+          params.output_path = dump_images_config_->captured_path.c_str();
+          private_->venc_ = video_encoder_init(params);
+          if (private_->venc_ == NULL){
+              ROS_ERROR("Failed to create capture video encoder");
+              exit(EXIT_FAILURE);
+          }
+
+          params.keyed = 1;
+          params.output_path = dump_images_config_->keyed_path.c_str();
+          private_->venc_keyed_ = video_encoder_init(params);
+          if (private_->venc_keyed_ == NULL){
+              ROS_ERROR("Failed to create capture keyed video encoder");
+              exit(EXIT_FAILURE);
+          }
+
+      }else{
+
+          // Ensure image dimensions have not changed
+          // RVN:TODO perhaps support this (if we have a use case)
+          if (screenshot_.width() != private_->venc_width_ || screenshot_.height() != private_->venc_height_)
+          {
+              dbus_->call("kill");
+              ROS_ERROR(
+                        "Detected change in screenshot dimensions: was %dx%d, now is %dx%d",
+                        private_->venc_width_,private_->venc_height_,screenshot_.width(),screenshot_.height());
+              exit(EXIT_FAILURE);
+          }
       }
 
+
+      // Encode frame for each output stream
+      uint8_t* bits = (uint8_t*) img.bits();
+      int ret;
+
+      // regular
+      ret = video_encoder_encode_frame(private_->venc_,bits);
+      if (ret != 0){
+          ROS_ERROR("failed to encode frame: %d", ret);
+          exit(EXIT_FAILURE);
+      }
+
+      // keyed
+      ret = video_encoder_encode_frame(private_->venc_keyed_,bits);
+      if (ret != 0){
+          ROS_ERROR("failed to encode frame: %d", ret);
+          exit(EXIT_FAILURE);
+      }
+
+      // screenshot
+      double midway = dump_images_config_->bagDuration / 2.0;
+      double curTime = dump_images_config_->lastEventTime - private_->bag_start;
+      if ( curTime >= midway && !private_->thumbnail_taken )
+      {
+          private_->thumbnail_taken = true;
+          QString filename;
+          filename.sprintf("%s", dump_images_config_->thumb_path.c_str());
+
+          QImageWriter writer(filename);
+          if (!writer.write(img.scaledToWidth(dump_images_config_->thumbWidth)))
+          {
+              ROS_ERROR("failed writing screenshot file %s: err %d",dump_images_config_->thumb_path.c_str(),writer.error());
+              exit(EXIT_FAILURE);
+          }
+          ROS_INFO("Wrote thumbnail at %f of %f (midway = %f)\n", curTime, dump_images_config_->bagDuration, midway);
+      }
+
+      dumped_frame_count_++;
       if (  dump_images_config_->nextTime > dump_images_config_->bagDuration )
       {
-        ROS_INFO(
-          "Finished dumping %f second bag with %d frames.", 
-          dump_images_config_->bagDuration, uint(dumped_frame_count_)
-        );
+          // destroy encoders
+          video_encoder_destroy(private_->venc_);
+          video_encoder_destroy(private_->venc_keyed_);
 
-        dbus_->call("kill");
-        exit(EXIT_SUCCESS);
+          ROS_INFO(
+                   "Finished dumping %f second bag with %d frames.",
+                   dump_images_config_->bagDuration, uint(dumped_frame_count_)
+                   );
+
+          dbus_->call("kill");
+          exit(EXIT_SUCCESS);
       }
     }
   }
@@ -542,7 +634,7 @@ void VisualizationManager::onUpdate()
 
 void VisualizationManager::nextFrame()
 {
-  QDBusReply<double> reply = dbus_->call("read", (double)(dump_images_config_->frameWidth), (double)(dump_images_config_->timeout));
+  QDBusReply<double> reply = dbus_->call("read", dump_images_config_->frameWidth, dump_images_config_->timeout);
   if (!reply.isValid())
   {
     ROS_ERROR(
@@ -554,10 +646,6 @@ void VisualizationManager::nextFrame()
   dump_images_config_->lastEventTime = reply.value();
   double previous = dump_images_config_->nextTime;
   double next = dump_images_config_->nextTime + dump_images_config_->frameWidth;
-
-  ROS_INFO(
-      "Pulling events from %f to %f",
-      previous, next);
 
   dump_images_config_->nextTime = next;
   startUpdate();

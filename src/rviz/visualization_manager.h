@@ -403,7 +403,6 @@ protected:
   QWindow* window_;
   DumpImagesConfig* dump_images_config_;
   QDBusInterface* dbus_;
-
 private Q_SLOTS:
   void updateFixedFrame();
   void updateBackgroundColor();
