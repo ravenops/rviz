@@ -157,7 +157,7 @@ VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesC
 , frame_count_(0)
 , dumped_frame_count_(0)
 , window_manager_(wm)
-, private_( new VisualizationManagerPrivate )
+, private_( new VisualizationManagerPrivate {})
 {
   // visibility_bit_allocator_ is listed after default_visibility_bit_ (and thus initialized later be default):
   default_visibility_bit_ = visibility_bit_allocator_.allocBit();
@@ -519,11 +519,11 @@ void VisualizationManager::onUpdate()
     if (shouldDump  && dump_images_config_->bagDuration > 0)
     {
       QPixmap screenshot_ = screen_->grabWindow(window_->winId());
-      if (screenshot_.width() % 2 || screenshot_.height() % 2) {
-          // ensure screenshot width are height are divisible by two
+      if (screenshot_.width() % 4 || screenshot_.height() % 4) {
+          // ensure screenshot width are height are divisible by four
           int w = screenshot_.width();
           int h = screenshot_.height();
-          screenshot_ = screenshot_.copy(0, 0, w - (w%2), h - (h%2));
+          screenshot_ = screenshot_.copy(0, 0, w - (w % 4), h - (h % 4));
       }
       QImage img = screenshot_.toImage();
 
