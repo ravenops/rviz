@@ -46,19 +46,21 @@ VideoEncoder* video_encoder_init(VideoEncodeParams params){
     memset(enc,0,sizeof(VideoEncoder));
 
     enc->params = params;
-
-    printf("[video encoder] capping width at %dpx\n",enc->params.maxWidth);
-    float aspectRatio = (float) enc->params.width / (float) enc->params.height;
-    enc->out_width = enc->params.width > enc->params.maxWidth ? enc->params.maxWidth : enc->params.width;
-    enc->out_height = (int) ((float) enc->out_width / aspectRatio);
-
-    // ensure output dimensions are divisible by 2
-    if (enc->out_width % 2) {
-        enc->out_width--;
+    if (enc->params.width % 2 || enc->params.height % 2){
+        fprintf(stderr,"%dx%d, dimensions not divisible by two!\n",enc->params.width,enc->params.height);
+        return NULL;
     }
-    if (enc->out_height % 2) {
-        enc->out_height--;
+    if (enc->params.width > enc->params.maxWidth) {
+        printf("[video encoder] WARN max width exceeded, scaling down to max width %dpx\n",enc->params.maxWidth);
+        float aspectRatio = (float) enc->params.width / (float) enc->params.height;
+        enc->out_width = enc->params.maxWidth;
+        enc->out_height = (int)( (float) enc->out_width / aspectRatio);
+    }else{
+        enc->out_width = enc->params.width;
+        enc->out_height = enc->params.height;
     }
+    enc->out_width -= enc->out_width % 2;
+    enc->out_height -= enc->out_height % 2;
 
     printf("[video encoder init] %d x %d --> %d x %d @ %f FPS\n",
 	   enc->params.width,enc->params.height,
@@ -75,16 +77,15 @@ VideoEncoder* video_encoder_init(VideoEncodeParams params){
     enc->frame_raw->width = enc->params.width;
     enc->frame_raw->height = enc->params.height;
     enc->frame_raw->format = enc->params.inFmt;
-
     int ret;
-    ret = av_frame_get_buffer(enc->frame_scaled, 32);
+    ret = av_frame_get_buffer(enc->frame_scaled,32);
     if (ret < 0) {
-        fprintf(stderr, "Could not allocate frame data: %s\n",av_err2str(ret));
+        fprintf(stderr, "Could not allocate scaled frame data: %s\n",av_err2str(ret));
         return NULL;
     }
-    ret = av_frame_get_buffer(enc->frame_raw, 32);
+    ret = av_frame_get_buffer(enc->frame_raw,32);
     if (ret < 0) {
-        fprintf(stderr, "Could not allocate frame data: %s\n",av_err2str(ret));
+        fprintf(stderr, "Could not allocate raw frame data: %s\n",av_err2str(ret));
         return NULL;
     }
 
@@ -223,25 +224,14 @@ static int video_encoder_send_frame(VideoEncoder *enc, AVFrame *frame){
 }
 
 int video_encoder_encode_frame(VideoEncoder *enc, const uint8_t *pixels){
-    int ret;
-    ret = av_frame_make_writable(enc->frame_raw);
-    if(ret < 0 ){
-        fprintf(stderr, "[video encoder] error allocating frame: %s\n",av_err2str(ret));
-        return ret;
-    }
-    ret = av_frame_make_writable(enc->frame_scaled);
-    if(ret < 0 ){
-        fprintf(stderr, "[video encoder] error allocating frame: %s\n",av_err2str(ret));
-        return ret;
-    }
 
     int bytesFilled = av_image_fill_arrays(enc->frame_raw->data,
                                            enc->frame_raw->linesize,
                                            pixels,
                                            enc->frame_raw->format,
                                            enc->frame_raw->width,enc->frame_raw->height,32);
-    if(!bytesFilled){
-       fprintf(stderr,"Could not fill raw picture bytes\n");
+    if(bytesFilled < 0){
+       fprintf(stderr,"Could not fill raw picture bytes: %s\n",av_err2str(bytesFilled));
        return -1;
     }
 
@@ -257,7 +247,7 @@ int video_encoder_encode_frame(VideoEncoder *enc, const uint8_t *pixels){
     }
 
     enc->frame_scaled->pts = enc->num_frames++;
-    sws_scale(enc->sws,
+    int ret = sws_scale(enc->sws,
               (const uint8_t * const *) enc->frame_raw->data,
 	      enc->frame_raw->linesize,
               0,
@@ -265,9 +255,10 @@ int video_encoder_encode_frame(VideoEncoder *enc, const uint8_t *pixels){
               enc->frame_scaled->data,
               enc->frame_scaled->linesize
               );
-
-
-
+    if (ret < 0){
+        fprintf(stderr,"failed to scale frame: %s\n",av_err2str(ret));
+        return ret;
+    }
     return video_encoder_send_frame(enc,enc->frame_scaled);
 }
 

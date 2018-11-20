@@ -519,6 +519,12 @@ void VisualizationManager::onUpdate()
     if (shouldDump  && dump_images_config_->bagDuration > 0)
     {
       QPixmap screenshot_ = screen_->grabWindow(window_->winId());
+      if (screenshot_.width() % 2 || screenshot_.height() % 2) {
+          // ensure screenshot width are height are divisible by two
+          int w = screenshot_.width();
+          int h = screenshot_.height();
+          screenshot_ = screenshot_.copy(0, 0, w - (w%2), h - (h%2));
+      }
       QImage img = screenshot_.toImage();
 
       if ( private_->venc_ == NULL){
@@ -594,7 +600,7 @@ void VisualizationManager::onUpdate()
           exit(EXIT_FAILURE);
       }
 
-      // screenshot
+      // thumbnail
       double midway = dump_images_config_->bagDuration / 2.0;
       double curTime = dump_images_config_->lastEventTime - private_->bag_start;
       if ( curTime >= midway && !private_->thumbnail_taken )
@@ -606,7 +612,7 @@ void VisualizationManager::onUpdate()
           QImageWriter writer(filename);
           if (!writer.write(img.scaledToWidth(dump_images_config_->thumbWidth)))
           {
-              ROS_ERROR("failed writing screenshot file %s: err %d",dump_images_config_->thumb_path.c_str(),writer.error());
+              ROS_ERROR("failed writing thumbnail file %s: err %d",dump_images_config_->thumb_path.c_str(),writer.error());
               exit(EXIT_FAILURE);
           }
           ROS_INFO("Wrote thumbnail at %f of %f (midway = %f)\n", curTime, dump_images_config_->bagDuration, midway);
