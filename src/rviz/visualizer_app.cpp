@@ -148,13 +148,17 @@ bool VisualizerApp::init(int argc, char **argv)
       ("verbose,v", "Enable debug visualizations")
       ("log-level-debug", "Sets the ROS logger level to debug.")
       ("dump-images", "On every screen render dump a jpg of contents.")
-      ("dump-folder",po::value<std::string>()->default_value("dump"), "Sets the folder for dumped images.")
-      ("dump-fps",po::value<float>()->default_value(30.0), "Frames per second for dumped images.  Can be floating point.")
+      ("captured-out",po::value<std::string>()->default_value("captured.mp4"), "Output path for captured mp4 file")
+      ("keyed-out",po::value<std::string>()->default_value("captured_keyed.mp4"), "Output path for captured keyed mp4 file")
+      ("thumb-out",po::value<std::string>()->default_value("captured_thumbnail.jpg"), "Output path for thumbnail jpg file")
+      ("thumb-width",po::value<int>()->default_value(128), "width for thumbnail")
+      ("dump-fps-num",po::value<int>()->default_value(30), "Numerator of frames per second for dumped x264 stream.  Must be an integer.")
+      ("dump-fps-den",po::value<int>()->default_value(1), "Denominator number of frames per second for dumped x264 stream.  Must be an integer.")
       ("dump-delay",po::value<float>()->default_value(1.5), "Delay X seconds until seeking bag file on DBus.")
       ("dump-timeout",po::value<float>()->default_value(30), "Retry initial connection to DBus for X seconds failing.");
 
     po::variables_map vm;
-    std::string display_config, fixed_frame, splash_path, help_path, dump_folder;
+    std::string display_config, fixed_frame, splash_path, help_path;
     bool enable_ogre_log = false;
     bool in_mc_wrapper = false;
     bool verbose = false;
@@ -246,18 +250,17 @@ bool VisualizerApp::init(int argc, char **argv)
       {
         dump_images_config = new DumpImagesConfig;
         dump_images_config->enabled = true;
-        dump_images_config->folder = vm["dump-folder"].as<std::string>();
-        dump_images_config->fps = vm["dump-fps"].as<float>();
+        dump_images_config->captured_path = vm["captured-out"].as<std::string>();
+        dump_images_config->keyed_path = vm["keyed-out"].as<std::string>();
+        dump_images_config->thumb_path = vm["thumb-out"].as<std::string>();
+        dump_images_config->thumbWidth = vm["thumb-width"].as<int>();
+        dump_images_config->fpsNum = vm["dump-fps-num"].as<int>();
+        dump_images_config->fpsDen = vm["dump-fps-den"].as<int>();
         dump_images_config->timeout = vm["dump-timeout"].as<float>();
-        dump_images_config->frameWidth = 1 / dump_images_config->fps;
-        dump_images_config->delayFrames = uint(ceil(vm["dump-delay"].as<float>() * dump_images_config->fps));
+        dump_images_config->frameWidth = ((float) dump_images_config->fpsDen) / ((float) dump_images_config->fpsNum);
+        dump_images_config->delayFrames = uint(ceil(vm["dump-delay"].as<float>() * (float) dump_images_config->fpsNum / (float) dump_images_config->fpsDen));
         dump_images_config->bagDuration = 0;
         dump_images_config->nextTime = 0;
-
-        if(QDir().mkdir(QString::fromStdString(dump_images_config->folder)))
-        {
-          ROS_INFO("folder '%s' created for dumping images into.", dump_images_config->folder.c_str());
-        }
       }
     }
     catch (std::exception &e)

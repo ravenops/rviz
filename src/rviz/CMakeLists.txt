@@ -143,6 +143,7 @@ target_link_libraries(${PROJECT_NAME}
   ${X11_X11_LIB}
   assimp
   yaml-cpp
+  rviz_video_encoder
 )
 
 

@@ -1,4 +1,5 @@
 add_subdirectory(rviz)
+add_subdirectory(rviz_video_encoder)
 add_subdirectory(image_view)
 if (CATKIN_ENABLE_TESTING)
   add_subdirectory(test)

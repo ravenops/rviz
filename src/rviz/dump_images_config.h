@@ -10,9 +10,13 @@ namespace rviz
 
 struct DumpImagesConfig {
   bool enabled;
-  std::string folder;
-  float fps;
-  float timeout;
+  std::string captured_path;
+  std::string keyed_path;
+  std::string thumb_path;
+  int thumbWidth;
+  int fpsNum;
+  int fpsDen;
+  double timeout;
 
   uint delayFrames;
   double frameWidth;
