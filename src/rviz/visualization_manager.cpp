@@ -141,7 +141,7 @@ VisualizationManager::VisualizationManager(
 , render_requested_(1)
 , frame_count_(0)
 , window_manager_(wm)
-, private_( new VisualizationManagerPrivate )
+, private_( new VisualizationManagerPrivate {} )
 {
   // visibility_bit_allocator_ is listed after default_visibility_bit_ (and thus initialized later be default):
   default_visibility_bit_ = visibility_bit_allocator_.allocBit();
