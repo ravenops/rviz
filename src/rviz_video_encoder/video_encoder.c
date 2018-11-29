@@ -164,8 +164,15 @@ VideoEncoder* video_encoder_init(VideoEncodeParams params){
         return NULL;
     }
 
+    AVDictionary *mp4opt = NULL;
+    av_dict_copy(&mp4opt,NULL,0);
+
+    //faststart (enable second pass to put MOOV atom at beginning of file
+    //allow playback to start before file download is complete, streaming)
+    av_dict_set(&mp4opt, "movflags","faststart", 0);
+
     fprintf(stdout,"Writing header\n");
-    ret = avformat_write_header(enc->oc,NULL);
+    ret = avformat_write_header(enc->oc,&mp4opt);
     if (ret < 0){
         fprintf(stderr," error writing output file header: %s\n",av_err2str(ret));
         return NULL;
