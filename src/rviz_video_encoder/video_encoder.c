@@ -177,6 +177,7 @@ VideoEncoder* video_encoder_init(VideoEncodeParams params){
         fprintf(stderr," error writing output file header: %s\n",av_err2str(ret));
         return NULL;
     }
+    av_dict_free(&mp4opt);
 
     // init bookeeping
     enc->num_frames = 0;
