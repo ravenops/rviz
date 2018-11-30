@@ -140,10 +140,10 @@ public:
   ros::NodeHandle update_nh_;
   ros::NodeHandle threaded_nh_;
   boost::mutex render_mutex_;
-  int venc_width_,venc_height_;
-  VideoEncoder *venc_,*venc_keyed_;
-  bool thumbnail_taken;
-  double bag_start;
+  int venc_width_,venc_height_ = 0;
+  VideoEncoder *venc_,*venc_keyed_ = NULL;
+  bool thumbnail_taken = false;
+  double bag_start = 0.0;
 };
 
 VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesConfig* dump_images_config, WindowManagerInterface* wm, boost::shared_ptr<tf::TransformListener> tf )
