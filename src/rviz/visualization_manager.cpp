@@ -144,6 +144,7 @@ public:
   VideoEncoder *venc_,*venc_keyed_ = NULL;
   bool thumbnail_taken = false;
   double bag_start = 0.0;
+  uint8_t* pixbuf = NULL;
 };
 
 VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesConfig* dump_images_config, WindowManagerInterface* wm, boost::shared_ptr<tf::TransformListener> tf )
@@ -518,24 +519,24 @@ void VisualizationManager::onUpdate()
 
     if (shouldDump  && dump_images_config_->bagDuration > 0)
     {
-      QPixmap screenshot_ = screen_->grabWindow(window_->winId());
-      if (screenshot_.width() % 4 || screenshot_.height() % 4) {
+      QImage img = screen_->grabWindow(window_->winId()).toImage();
+      if (img.width() % 4 || img.height() % 4) {
           // ensure screenshot width are height are divisible by four
-          int w = screenshot_.width();
-          int h = screenshot_.height();
-          screenshot_ = screenshot_.copy(0, 0, w - (w % 4), h - (h % 4));
+          int w = img.width();
+          int h = img.height();
+          img = img.copy(0, 0, w - (w % 4), h - (h % 4));
+          ROS_INFO("trimming dimensions to multiples of 4: %d x %d -> %d x %d",
+                   w,h,img.width(),img.height());
       }
-      QImage img = screenshot_.toImage();
+
+      if ( img.format() != QImage::Format_RGB32 ){
+          ROS_INFO("Converting image format to RGB32");
+          img = img.convertToFormat(QImage::Format_RGB32);
+      }
 
       if ( private_->venc_ == NULL){
-          private_->venc_width_ = screenshot_.width();
-          private_->venc_height_ = screenshot_.height();
-
-          // RVN:FIXME implement more formats if needed
-          if ( img.format() != QImage::Format_RGB32 ){
-              ROS_ERROR("Detected unsupported screenshot image format: %u",img.format());
-              exit(EXIT_FAILURE);
-          }
+          private_->venc_width_ = img.width();
+          private_->venc_height_ = img.height();
 
           ROS_INFO("Init rviz video encoder: %dx%d @ %d/%d fps, input format %d",private_->venc_width_,private_->venc_height_,
                    dump_images_config_->fpsNum, dump_images_config_->fpsDen, img.format());
@@ -567,34 +568,41 @@ void VisualizationManager::onUpdate()
               exit(EXIT_FAILURE);
           }
 
+          // allocate pixel buffer
+          private_->pixbuf = (uint8_t*) malloc(sizeof(uint8_t)*img.bytesPerLine()*img.height());
+
       }else{
 
           // Ensure image dimensions have not changed
           // RVN:TODO perhaps support this (if we have a use case)
-          if (screenshot_.width() != private_->venc_width_ || screenshot_.height() != private_->venc_height_)
+          if (img.width() != private_->venc_width_ || img.height() != private_->venc_height_)
           {
               dbus_->call("kill");
               ROS_ERROR(
                         "Detected change in screenshot dimensions: was %dx%d, now is %dx%d",
-                        private_->venc_width_,private_->venc_height_,screenshot_.width(),screenshot_.height());
+                        private_->venc_width_,private_->venc_height_,img.width(),img.height());
               exit(EXIT_FAILURE);
           }
       }
 
 
+      // Fill byte array with pixel data
+      for (int i = 0; i < img.height(); i++){
+          memcpy(&private_->pixbuf[i*img.bytesPerLine()],img.constScanLine(i),img.bytesPerLine());
+      }
+
       // Encode frame for each output stream
-      uint8_t* bits = (uint8_t*) img.bits();
       int ret;
 
       // regular
-      ret = video_encoder_encode_frame(private_->venc_,bits);
+      ret = video_encoder_encode_frame(private_->venc_, private_->pixbuf);
       if (ret != 0){
           ROS_ERROR("failed to encode frame: %d", ret);
           exit(EXIT_FAILURE);
       }
 
       // keyed
-      ret = video_encoder_encode_frame(private_->venc_keyed_,bits);
+      ret = video_encoder_encode_frame(private_->venc_keyed_,private_->pixbuf);
       if (ret != 0){
           ROS_ERROR("failed to encode frame: %d", ret);
           exit(EXIT_FAILURE);
@@ -625,6 +633,9 @@ void VisualizationManager::onUpdate()
           video_encoder_destroy(private_->venc_);
           video_encoder_destroy(private_->venc_keyed_);
 
+          if(private_->pixbuf != NULL){
+              free(private_->pixbuf);
+          }
           ROS_INFO(
                    "Finished dumping %f second bag with %d frames.",
                    dump_images_config_->bagDuration, uint(dumped_frame_count_)
