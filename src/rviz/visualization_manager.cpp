@@ -518,18 +518,17 @@ void VisualizationManager::onUpdate()
 
     if (shouldDump  && dump_images_config_->bagDuration > 0)
     {
-      QPixmap screenshot_ = screen_->grabWindow(window_->winId());
-      if (screenshot_.width() % 4 || screenshot_.height() % 4) {
+      QImage img = screen_->grabWindow(window_->winId()).toImage();
+      if (img.width() % 4 || img.height() % 4) {
           // ensure screenshot width are height are divisible by four
-          int w = screenshot_.width();
-          int h = screenshot_.height();
-          screenshot_ = screenshot_.copy(0, 0, w - (w % 4), h - (h % 4));
+          int w = img.width();
+          int h = img.height();
+          img = img.copy(0, 0, w - (w % 4), h - (h % 4));
       }
-      QImage img = screenshot_.toImage();
 
       if ( private_->venc_ == NULL){
-          private_->venc_width_ = screenshot_.width();
-          private_->venc_height_ = screenshot_.height();
+          private_->venc_width_ = img.width();
+          private_->venc_height_ = img.height();
 
           // RVN:FIXME implement more formats if needed
           if ( img.format() != QImage::Format_RGB32 ){
@@ -571,19 +570,19 @@ void VisualizationManager::onUpdate()
 
           // Ensure image dimensions have not changed
           // RVN:TODO perhaps support this (if we have a use case)
-          if (screenshot_.width() != private_->venc_width_ || screenshot_.height() != private_->venc_height_)
+          if (img.width() != private_->venc_width_ || img.height() != private_->venc_height_)
           {
               dbus_->call("kill");
               ROS_ERROR(
                         "Detected change in screenshot dimensions: was %dx%d, now is %dx%d",
-                        private_->venc_width_,private_->venc_height_,screenshot_.width(),screenshot_.height());
+                        private_->venc_width_,private_->venc_height_,img.width(),img.height());
               exit(EXIT_FAILURE);
           }
       }
 
 
       // Encode frame for each output stream
-      uint8_t* bits = (uint8_t*) img.bits();
+      const uint8_t* bits = (const uint8_t*) img.constBits();
       int ret;
 
       // regular
