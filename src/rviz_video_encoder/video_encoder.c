@@ -46,8 +46,8 @@ VideoEncoder* video_encoder_init(VideoEncodeParams params){
     memset(enc,0,sizeof(VideoEncoder));
 
     enc->params = params;
-    if (enc->params.width % 4 || enc->params.height % 4){
-        fprintf(stderr,"%dx%d, dimensions not divisible by four!\n",enc->params.width,enc->params.height);
+    if (enc->params.width % 8 || enc->params.height % 8){
+        fprintf(stderr,"%dx%d, dimensions not divisible by 8!\n",enc->params.width,enc->params.height);
         return NULL;
     }
     if (enc->params.width > enc->params.maxWidth) {
@@ -59,8 +59,8 @@ VideoEncoder* video_encoder_init(VideoEncodeParams params){
         enc->out_width = enc->params.width;
         enc->out_height = enc->params.height;
     }
-    enc->out_width -= enc->out_width % 4;
-    enc->out_height -= enc->out_height % 4;
+    enc->out_width -= enc->out_width % 8;
+    enc->out_height -= enc->out_height % 8;
 
     printf("[video encoder init] %d x %d --> %d x %d @ %f FPS\n",
 	   enc->params.width,enc->params.height,

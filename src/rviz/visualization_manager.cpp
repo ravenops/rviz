@@ -520,12 +520,12 @@ void VisualizationManager::onUpdate()
     if (shouldDump  && dump_images_config_->bagDuration > 0)
     {
       QImage img = screen_->grabWindow(window_->winId()).toImage();
-      if (img.width() % 4 || img.height() % 4) {
+      if (img.width() % 8 || img.height() % 8) {
           // ensure screenshot width are height are divisible by four
           int w = img.width();
           int h = img.height();
-          img = img.copy(0, 0, w - (w % 4), h - (h % 4));
-          ROS_INFO("trimming dimensions to multiples of 4: %d x %d -> %d x %d",
+          img = img.copy(0, 0, w - (w % 8), h - (h % 8));
+          ROS_INFO("trimming dimensions to multiples of 8: %d x %d -> %d x %d",
                    w,h,img.width(),img.height());
       }
 
