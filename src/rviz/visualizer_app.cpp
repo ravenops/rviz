@@ -105,6 +105,19 @@ VisualizerApp::VisualizerApp()
 {
 }
 
+std::map<std::string,std::string> VisualizerApp::env_param_names =
+    {
+     {"RVN_RVIZ_DUMP_IMAGES","dump-images"},
+     {"RVN_RVIZ_CAPTURED_OUT", "captured-out"},
+     {"RVN_RVIZ_KEYED_OUT", "keyed-out"},
+     {"RVN_RVIZ_THUMB_OUT", "thumb-out"},
+     {"RVN_RVIZ_THUMB_WIDTH", "thumb-width"},
+     {"RVN_RVIZ_DUMP_FPS_NUM", "dump-fps-num"},
+     {"RVN_RVIZ_DUMP_FPS_DEN", "dump-fps-den"},
+     {"RVN_RVIZ_DUMP_DELAY", "dump-delay"},
+     {"RVN_RVIZ_DUMP_TIMEOUT", "dump-timeout"},
+    };
+
 void VisualizerApp::setApp(QApplication *app)
 {
   app_ = app;
@@ -170,6 +183,19 @@ bool VisualizerApp::init(int argc, char **argv)
 
     try
     {
+      // parse environment variables
+      po:store(po::parse_environment
+               (options,
+                [](const std::string& i_env_var){
+                    std::map<std::string,std::string>::iterator it = VisualizerApp::env_param_names.find(i_env_var);
+                    if(it != VisualizerApp::env_param_names.end()){
+                        //element found;
+                        ROS_INFO("[RVN] Using environment variable %s",i_env_var.c_str());
+                        return it->second;
+                    }
+                    return std::string("");
+                }),vm);
+      // parse command line args. These get precedence over environment variables
       po::store(po::parse_command_line(argc, argv, options), vm);
       po::notify(vm);
 
@@ -311,7 +337,7 @@ bool VisualizerApp::init(int argc, char **argv)
     {
       frame_->setSplashPath(QString::fromStdString(splash_path));
     }
-    
+
     frame_->initialize(QString::fromStdString(display_config), dump_images_config);
     if (!fixed_frame.empty())
     {
@@ -325,7 +351,7 @@ bool VisualizerApp::init(int argc, char **argv)
     ros::NodeHandle private_nh("~");
     reload_shaders_service_ = private_nh.advertiseService("reload_shaders", reloadShaders);
 
-    ROS_INFO("RavenOps v%s", get_version().c_str());
+    ROS_INFO("[RVN] rviz version v%s", get_version().c_str());
 #if CATCH_EXCEPTIONS
   }
   catch (std::exception &e)

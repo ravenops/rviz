@@ -55,6 +55,7 @@ public:
   /** Start everything.  Pass in command line arguments.
    * @return false on failure, true on success. */
   bool init( int argc, char** argv );
+  static std::map<std::string,std::string> env_param_names;
 
 private Q_SLOTS:
   /** If ros::ok() is false, close all windows. */
