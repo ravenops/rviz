@@ -104,11 +104,6 @@
 // On quality vs speed spectrum, leaning towards speed
 #define RVN_LIBAV_PRESET "fast"
 
-// Maximum width of frames we run through x264 encoder
-// If input exceedes this width, the input resolution will be scaled to fit this width, perserving aspect ratio
-// before being x264 encoded
-#define RVN_LIBAV_MAXWIDTH 1920
-
 namespace rviz
 {
 
@@ -551,7 +546,7 @@ void VisualizationManager::onUpdate()
           // RVN:TODO expose as CLI parameters
           params.crf = RVN_LIBAV_CRF;
           params.preset = RVN_LIBAV_PRESET;
-          params.maxWidth = RVN_LIBAV_MAXWIDTH;
+          params.maxWidth = dump_images_config_->maxWidth;
 
           params.output_path = dump_images_config_->captured_path.c_str();
           private_->venc_ = video_encoder_init(params);

@@ -14,6 +14,7 @@ struct DumpImagesConfig {
   std::string keyed_path;
   std::string thumb_path;
   int thumbWidth;
+  int maxWidth;
   int fpsNum;
   int fpsDen;
   double timeout;
