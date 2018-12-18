@@ -525,12 +525,12 @@ void VisualizationManager::onUpdate()
           int w = img.width();
           int h = img.height();
           img = img.copy(0, 0, w - (w % 8), h - (h % 8));
-          ROS_INFO("trimming dimensions to multiples of 8: %d x %d -> %d x %d",
+          ROS_DEBUG("trimming dimensions to multiples of 8: %d x %d -> %d x %d",
                    w,h,img.width(),img.height());
       }
 
       if ( img.format() != QImage::Format_RGB32 ){
-          ROS_INFO("Converting image format to RGB32");
+          ROS_DEBUG("Converting image format to RGB32");
           img = img.convertToFormat(QImage::Format_RGB32);
       }
 

@@ -383,7 +383,7 @@ def main():
     parser  = argparse.ArgumentParser()
     parser.add_argument( '-b', '--bagfile', required=True, default="",    help="complete bagfile path")
     parser.add_argument( '-v', '--verbose',                default=False, help="select verbose output", action='store_true')
-
+    parser.add_argument("args",nargs='+')
     args = parser.parse_args()
     if args.bagfile: bagfile = args.bagfile
     if args.verbose: verbose = True # RVN::TODO: Not connected
