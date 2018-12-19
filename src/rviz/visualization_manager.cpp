@@ -514,7 +514,7 @@ void VisualizationManager::onUpdate()
 
     if (shouldDump  && dump_images_config_->bagDuration > 0)
     {
-      QImage img = screen_->grabWindow(window_->winId()).toImage();
+      QImage img = screen_->grabWindow(0).toImage();
       if (img.width() % 8 || img.height() % 8) {
           // ensure screenshot width are height are divisible by four
           int w = img.width();
