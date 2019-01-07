@@ -245,7 +245,7 @@ install(FILES plugin_description.xml
 install(FILES help/help.html
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/help
 )
-install(FILES scripts/rvnbag_play.py
+install(FILES scripts/rvnbag_play.py scripts/openbox scripts/xcompmgr
   PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
