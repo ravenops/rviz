@@ -13,6 +13,7 @@ struct DumpImagesConfig {
   std::string captured_path;
   std::string keyed_path;
   std::string thumb_path;
+  std::string poster_path;
   int thumbWidth;
   int maxWidth;
   int fpsNum;

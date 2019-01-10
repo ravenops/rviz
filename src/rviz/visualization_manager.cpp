@@ -612,13 +612,22 @@ void VisualizationManager::onUpdate()
           QString filename;
           filename.sprintf("%s", dump_images_config_->thumb_path.c_str());
 
-          QImageWriter writer(filename);
-          if (!writer.write(img.scaledToWidth(dump_images_config_->thumbWidth)))
+          QImageWriter thumbWriter(filename);
+          if (!thumbWriter.write(img.scaledToWidth(dump_images_config_->thumbWidth)))
           {
-              ROS_ERROR("failed writing thumbnail file %s: err %d",dump_images_config_->thumb_path.c_str(),writer.error());
+              ROS_ERROR("failed writing thumbnail file %s: err %d",dump_images_config_->thumb_path.c_str(),thumbWriter.error());
               exit(EXIT_FAILURE);
           }
-          ROS_INFO("Wrote thumbnail at %f of %f (midway = %f)\n", curTime, dump_images_config_->bagDuration, midway);
+
+          filename.sprintf("%s",dump_images_config_->poster_path.c_str());
+
+          QImageWriter posterWriter(filename);
+          if (!posterWriter.write(img))
+          {
+              ROS_ERROR("failed writing poster file %s: err %d",dump_images_config_->poster_path.c_str(),posterWriter.error());
+              exit(EXIT_FAILURE);
+          }
+          ROS_INFO("Wrote thumbnail and poster at %f of %f (midway = %f)\n", curTime, dump_images_config_->bagDuration, midway);
       }
 
       dumped_frame_count_++;

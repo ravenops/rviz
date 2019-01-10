@@ -111,6 +111,7 @@ std::map<std::string,std::string> VisualizerApp::env_param_names =
      {"RVN_RVIZ_CAPTURED_OUT", "captured-out"},
      {"RVN_RVIZ_KEYED_OUT", "keyed-out"},
      {"RVN_RVIZ_THUMB_OUT", "thumb-out"},
+     {"RVN_RVIZ_POSTER_OUT", "poster-out"},
      {"RVN_RVIZ_THUMB_WIDTH", "thumb-width"},
      {"RVN_RVIZ_DUMP_FPS_NUM", "dump-fps-num"},
      {"RVN_RVIZ_DUMP_FPS_DEN", "dump-fps-den"},
@@ -166,6 +167,7 @@ bool VisualizerApp::init(int argc, char **argv)
       ("keyed-out",po::value<std::string>()->default_value("captured_keyed.mp4"), "Output path for captured keyed mp4 file")
       ("thumb-out",po::value<std::string>()->default_value("captured_thumbnail.jpg"), "Output path for thumbnail jpg file")
       ("thumb-width",po::value<int>()->default_value(128), "width for thumbnail")
+      ("poster-out",po::value<std::string>()->default_value("captured_poster.jpg"), "Output path for poster (fullsize thumbnail) jpg file")
       ("max-width", po::value<int>()->default_value(1920), "maximum width of outputted encoded mp4 video streams")
       ("dump-fps-num",po::value<int>()->default_value(30), "Numerator of frames per second for dumped x264 stream.  Must be an integer.")
       ("dump-fps-den",po::value<int>()->default_value(1), "Denominator number of frames per second for dumped x264 stream.  Must be an integer.")
@@ -282,6 +284,7 @@ bool VisualizerApp::init(int argc, char **argv)
         dump_images_config->keyed_path = vm["keyed-out"].as<std::string>();
         dump_images_config->thumb_path = vm["thumb-out"].as<std::string>();
         dump_images_config->thumbWidth = vm["thumb-width"].as<int>();
+        dump_images_config->poster_path = vm["poster-out"].as<std::string>();
         dump_images_config->maxWidth = vm["max-width"].as<int>();
         dump_images_config->fpsNum = vm["dump-fps-num"].as<int>();
         dump_images_config->fpsDen = vm["dump-fps-den"].as<int>();
