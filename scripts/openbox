@@ -1,2 +1,5 @@
 #!/bin/bash
-exec openbox --sm-disable --debug
+set -euo pipefail
+echo "openbox: using config file: ${1}"
+cat "${1}"
+exec openbox --sm-disable --debug --config-file "${1}"
