@@ -99,7 +99,7 @@
 // or nearly so; it should look the same or nearly the same as the input but it isn't
 // technically lossless.
 // Generally deals with quality vs bitrate spectrum
-#define RVN_LIBAV_CRF 17.0
+#define RVN_LIBAV_CRF 23.0
 
 // On quality vs speed spectrum, leaning towards speed
 #define RVN_LIBAV_PRESET "fast"
