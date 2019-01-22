@@ -608,31 +608,24 @@ void VisualizationManager::onUpdate()
       double curTime = dump_images_config_->lastEventTime - private_->bag_start;
       if ( curTime >= midway && !private_->thumbnail_taken )
       {
+          takeThumb(img);
           private_->thumbnail_taken = true;
-          QString filename;
-          filename.sprintf("%s", dump_images_config_->thumb_path.c_str());
-
-          QImageWriter thumbWriter(filename);
-          if (!thumbWriter.write(img.scaledToWidth(dump_images_config_->thumbWidth)))
-          {
-              ROS_ERROR("failed writing thumbnail file %s: err %d",dump_images_config_->thumb_path.c_str(),thumbWriter.error());
-              exit(EXIT_FAILURE);
-          }
-
-          filename.sprintf("%s",dump_images_config_->poster_path.c_str());
-
-          QImageWriter posterWriter(filename);
-          if (!posterWriter.write(img))
-          {
-              ROS_ERROR("failed writing poster file %s: err %d",dump_images_config_->poster_path.c_str(),posterWriter.error());
-              exit(EXIT_FAILURE);
-          }
           ROS_INFO("Wrote thumbnail and poster at %f of %f (midway = %f)\n", curTime, dump_images_config_->bagDuration, midway);
+
       }
 
       dumped_frame_count_++;
       if (  dump_images_config_->nextTime > dump_images_config_->bagDuration )
       {
+          // This will be the last frame of this bag capture
+
+          // ensure thumbnail and poster gets written
+          if (!private_->thumbnail_taken)
+          {
+              takeThumb(img);
+              ROS_WARN("Wrote thumbnail and poster at end of bag (%f). This is most likely a very short, empty or malformed bag\n",curTime);
+          }
+
           // destroy encoders
           video_encoder_destroy(private_->venc_);
           video_encoder_destroy(private_->venc_keyed_);
@@ -908,6 +901,28 @@ void VisualizationManager::setFixedFrame( const QString& frame )
 void VisualizationManager::setStatus( const QString & message )
 {
   emitStatusUpdate( message );
+}
+
+void VisualizationManager::takeThumb(const QImage & img)
+{
+    QString filename;
+    filename.sprintf("%s", dump_images_config_->thumb_path.c_str());
+
+    QImageWriter thumbWriter(filename);
+    if (!thumbWriter.write(img.scaledToWidth(dump_images_config_->thumbWidth)))
+    {
+        ROS_ERROR("failed writing thumbnail file %s: err %d",dump_images_config_->thumb_path.c_str(),thumbWriter.error());
+        exit(EXIT_FAILURE);
+    }
+
+    filename.sprintf("%s",dump_images_config_->poster_path.c_str());
+
+    QImageWriter posterWriter(filename);
+    if (!posterWriter.write(img))
+    {
+        ROS_ERROR("failed writing poster file %s: err %d",dump_images_config_->poster_path.c_str(),posterWriter.error());
+        exit(EXIT_FAILURE);
+    }
 }
 
 } // namespace rviz

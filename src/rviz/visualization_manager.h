@@ -321,6 +321,7 @@ public:
   virtual void setHelpPath( const QString& help_path ) { help_path_ = help_path; }
   virtual QString getHelpPath() const { return help_path_; }
 
+  void takeThumb(const QImage & img);
 Q_SIGNALS:
 
   /** @brief Emitted before updating all Displays */
