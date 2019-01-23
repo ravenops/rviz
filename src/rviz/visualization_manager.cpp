@@ -510,7 +510,7 @@ void VisualizationManager::onUpdate()
   }
   if (should_render){
     render_requested_ = 0;
-    ogre_root_->renderOneFrame();
+    ogre_root_->renderOneFrame(dump_images_config_->frameWidth);
 
     if (shouldDump  && dump_images_config_->bagDuration > 0)
     {
