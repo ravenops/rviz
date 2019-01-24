@@ -502,12 +502,12 @@ void VisualizationManager::onUpdate()
       should_render = true;
     }
   }
-  else{
-    if ( render_requested_ || wall_dt > 0.01 )
-    {
+
+  if ( render_requested_ || wall_dt > 0.01 )
+  {
       should_render = true;
-    }
   }
+
   if (should_render){
     render_requested_ = 0;
     ogre_root_->renderOneFrame();
