@@ -41,7 +41,7 @@ class ExitStatus(Enum):
 # ----------------------------------------------------------------------------------------------------------------------
 class MessageContainer(object):
     """
-    It is much more convenient to have a message holder class than try and untangle the 
+    It is much more convenient to have a message holder class than try and untangle the
     tupple supplied
     """
     def __init__(self, topic, raw_msg=None, t=rospy.Time()):
@@ -89,7 +89,7 @@ class BagReader(object):
         :params bagfile: str --- full path to the desired ROS bagfile
         :params delta:   rospy.Duration -- frame duration
         """
-    
+
         # start the bag loading thread
         self.event = threading.Event()
         self.event.clear()
@@ -152,7 +152,7 @@ class BagReader(object):
             return True
 
         # if not specified, default
-        if "latching" not in header: 
+        if "latching" not in header:
             self._latching_status[topic] = False
             return True
 
@@ -166,7 +166,7 @@ class BagReader(object):
     def reseek( self, seek_point, timeout=30.0 ):
         """ stops the current itteration and resets the read loop criteria. input time is from start of bag not Unix time"""
 
-        if type(seek_point) is float or type(seek_point) is int: 
+        if type(seek_point) is float or type(seek_point) is int:
             seek_point = seek_point + self._bag.get_start_time()
             seek_point = rospy.Time(seek_point)
 
@@ -176,7 +176,7 @@ class BagReader(object):
         self._frame_end = seek_point
         self._generator = self._bag.read_messages(
             raw        = True,
-            start_time = seek_point, 
+            start_time = seek_point,
             end_time   = rospy.Time(self._bag.get_end_time()),
             connection_filter = self._header_callback )
 
@@ -189,21 +189,21 @@ class BagReader(object):
 
         if type(duration) is float:
             duration = rospy.Duration(duration)
-        
+
         frame=[]
         self._frame_end = self._frame_end+duration
         self.clock_out  = rospy.Time(0)
 
         for topic, raw_msg, t in self._generator:
 
-            if self._reached_frame_end(t): 
+            if self._reached_frame_end(t):
                 break
             else:
                 frame.append( MessageContainer(topic, raw_msg=raw_msg, t=t) )
                 if self.clock_out < frame[-1].time_of_bagging:
                     self.clock_out = frame[-1].time_of_bagging
 
-        return frame        
+        return frame
 
 
 
@@ -236,7 +236,7 @@ class PublicationControl(object):
         self._all_publishers = {}
         self._last_ros_clock_msg = None
         self._loop = loop #used to issue quit command to kill
- 
+
         try:
             rospy.init_node( ros_node_name, anonymous=True )
         except Exception as e:
@@ -277,7 +277,7 @@ class PublicationControl(object):
 
         # clock message is special and we handle it specially!
         if msg_cont.topic == "/clock": return
-        
+
         if msg_cont.topic not in self._all_publishers:
             self._create_publisher(msg_cont)
 
@@ -318,7 +318,7 @@ class PublicationControl(object):
 
         if t < dt and not self._initial_seek_lock:
             rospy.logwarn("You are attempting to perform a seek back in time. This *may* cause problems with existing TF trees")
-        
+
         try:
             self.bag_reader.reseek(t, timeout=timeout)
         except Exception as e:
@@ -333,12 +333,12 @@ class PublicationControl(object):
 
     def read( self, duration, timeout ):
         """
-        d-bus method to read and publish the frame over duration. 
-        generates a frame over the period of duration, which is then published to the ROS graph. 
+        d-bus method to read and publish the frame over duration.
+        generates a frame over the period of duration, which is then published to the ROS graph.
         returns the last \clock message as seconds float. returns a -ve number if in error
 
         RVN::NB: This will not do anything if you have not already 'seeked' prior to calling
-        this method. This ensures that an initial re-seek back to 0 does not befoul the 
+        this method. This ensures that an initial re-seek back to 0 does not befoul the
         tf tree.
         """
         self.bag_reader.wait_for_bag(timeout)
@@ -352,16 +352,16 @@ class PublicationControl(object):
         if rospy.is_shutdown():
            rospy.logerr("Error: tried to read frame when ROS is shutdown!")
            return -1.0
-       
+
         # get the frame
         try:
             frame = self.bag_reader.get_next_frame( duration, timeout=timeout )
         except Exception as e:
             rospy.logerr("unable to get next frame: {}".format(e))
             return clock_msg.clock.to_sec()
-        
+
         # publish the message
-        for msg in frame:    
+        for msg in frame:
            self._publish_msg( msg )
 
         # return the clock via d-bus and possibly publish to system
@@ -376,7 +376,7 @@ class PublicationControl(object):
 # ----------------------------------------------------------------------------------------------------------------------
 
 def main():
-    rospy.loginfo("Starting Raven[ops] ROS Bag Player") 
+    rospy.loginfo("Starting Raven[ops] ROS Bag Player")
 
     verbose = False
     bagfile = ""
@@ -417,7 +417,7 @@ def main():
     except Exception as e:
         rospy.logerr("Unable to set up session dbus: {}".format(e))
         return ExitStatus.PUB_FAIL
-    
+
     rospy.loginfo("published to the '{}' dbus ".format(service_name))
     rospy.loginfo("running the main loop...")
 
