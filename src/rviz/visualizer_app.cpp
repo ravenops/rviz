@@ -293,6 +293,8 @@ bool VisualizerApp::init(int argc, char **argv)
         dump_images_config->delayFrames = uint(ceil(vm["dump-delay"].as<float>() * (float) dump_images_config->fpsNum / (float) dump_images_config->fpsDen));
         dump_images_config->bagDuration = 0;
         dump_images_config->nextTime = 0;
+        dump_images_config->lastEventTime = 0;
+        dump_images_config->preloadDuration = 0;
       }
     }
     catch (std::exception &e)

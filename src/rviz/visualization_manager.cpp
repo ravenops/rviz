@@ -138,7 +138,6 @@ public:
   int venc_width_,venc_height_ = 0;
   VideoEncoder *venc_,*venc_keyed_ = NULL;
   bool thumbnail_taken = false;
-  double bag_start = 0.0;
   uint8_t* pixbuf = NULL;
 };
 
@@ -414,7 +413,7 @@ void VisualizationManager::onUpdate()
   float ros_dt = ros_diff.toSec();
   last_update_ros_time_ = ros::Time::now();
   last_update_wall_time_ = ros::WallTime::now();
-  bool shouldDump = dump_images_config_ != NULL && dump_images_config_->enabled;
+  bool dump_enabled = dump_images_config_ != NULL && dump_images_config_->enabled;
 
   if(ros_dt < 0.0)
   {
@@ -433,7 +432,7 @@ void VisualizationManager::onUpdate()
 
   time_update_timer_ += wall_dt;
 
-  if( time_update_timer_ > 0.1f || shouldDump)
+  if( time_update_timer_ > 0.1f || dump_enabled)
   {
     time_update_timer_ = 0.0f;
 
@@ -476,44 +475,45 @@ void VisualizationManager::onUpdate()
   //     dump_images_config_->bagDuration
   //   );
 
-  bool should_render = false;
+  bool should_dump = false;
+
   boost::mutex::scoped_lock lock(private_->render_mutex_);
-  if(shouldDump)
+  if(dump_enabled)
   {
     // ROS_INFO("<%d> wall clock %f", uint(frame_count_), last_update_wall_time_.toSec());
-
-    if(dump_images_config_->bagDuration == 0 && frame_count_ > dump_images_config_->delayFrames)
+    if(!dump_images_config_->bagDuration > 0)
     {
-      ROS_INFO("Re-Seeking to start of the bag, this may take a few seconds as bag loads...");
-      QDBusReply<double> reply = dbus_->call("seek", 0.0, dump_images_config_->timeout);
-      if (!reply.isValid())
-      {
-        ROS_ERROR("lastTimeSeconds error: '%s'", reply.error().message().toStdString().c_str());
-        exit(EXIT_FAILURE);
-      }
-      ROS_INFO("...Re-Seek done.");
-      dump_images_config_->bagDuration = reply.value();
-      ROS_INFO("Bag duration %f seconds.", dump_images_config_->bagDuration);
-      nextFrame();
-      should_render = true;
-      private_->bag_start = dump_images_config_->lastEventTime;
-    }else if(rosTime >= dump_images_config_->lastEventTime) {
-      nextFrame();
-      should_render = true;
+        QDBusReply<double> reply = dbus_->call("bag_duration", dump_images_config_->timeout);
+        dump_images_config_->bagDuration = reply.value();
+        ROS_INFO("Bag duration: %.10f sec",dump_images_config_->bagDuration);
+    }
+
+    if(!dump_images_config_->preloadDuration > 0)
+    {
+        QDBusReply<double> reply = dbus_->call("preload_duration");
+        double duration = reply.value();
+        if (duration > 0){
+            dump_images_config_->preloadDuration  = duration;
+        }
+    }
+
+    if(dump_images_config_->bagDuration > 0 && // bag loaded
+       (rosTime >= dump_images_config_->lastEventTime || ! dump_images_config_->nextTime > 0)) // we've actually moved forward or are just starting
+    {
+        nextFrame();
+        if (dump_images_config_->preloadDuration > 0 && // preload sequence played
+            dump_images_config_->lastEventTime > dump_images_config_->preloadDuration) // we've rendered the preload sequence
+            {
+                should_dump = true;
+            }
     }
   }
 
-  if ( render_requested_ || wall_dt > 0.01 )
+  if (should_dump)
   {
-      should_render = true;
-  }
+      render_requested_ = 0;
+      ogre_root_->renderOneFrame();
 
-  if (should_render){
-    render_requested_ = 0;
-    ogre_root_->renderOneFrame();
-
-    if (shouldDump  && dump_images_config_->bagDuration > 0)
-    {
       QImage img = screen_->grabWindow(0).toImage();
       if (img.width() % 8 || img.height() % 8) {
           // ensure screenshot width are height are divisible by four
@@ -605,7 +605,7 @@ void VisualizationManager::onUpdate()
 
       // thumbnail
       double midway = dump_images_config_->bagDuration / 2.0;
-      double curTime = dump_images_config_->lastEventTime - private_->bag_start;
+      double curTime = dump_images_config_->nextTime;
       if ( curTime >= midway && !private_->thumbnail_taken )
       {
           private_->thumbnail_taken = true;
@@ -648,9 +648,14 @@ void VisualizationManager::onUpdate()
           dbus_->call("kill");
           exit(EXIT_SUCCESS);
       }
-    }
+  }else{
+      if(render_requested_ || wall_dt > 0.01){
+          render_requested_ = 0;
+          ogre_root_->renderOneFrame();
+      }
   }
 }
+
 
 void VisualizationManager::nextFrame()
 {
