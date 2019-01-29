@@ -101,6 +101,8 @@ class BagReader(object):
         self._latching_status = {}
         self.clock_out = rospy.Time(0)
 
+        # set when msg w/ topic = /rvn/rviz/ctrl/preload_end is seen
+        self.preload_end_time = None
 
     def _reached_frame_end( self, t ):
         if t < self._frame_end:
@@ -135,6 +137,11 @@ class BagReader(object):
         """returns the duration of the bag in seconds"""
         return self._bag.get_end_time() - self._bag.get_start_time()
 
+
+    def get_preload_duration(self):
+        if self.preload_end_time is None:
+            return 0.0
+        return self.preload_end_time.to_sec() - self._bag.get_start_time()
 
     def is_latched(self, topic):
         """get the latching status of this topic"""
@@ -199,6 +206,8 @@ class BagReader(object):
             if self._reached_frame_end(t):
                 break
             else:
+                if topic == "/rvn/rviz/ctrl/preload_end":
+                    self.preload_end_time = t
                 frame.append( MessageContainer(topic, raw_msg=raw_msg, t=t) )
                 if self.clock_out < frame[-1].time_of_bagging:
                     self.clock_out = frame[-1].time_of_bagging
@@ -213,10 +222,12 @@ class PublicationControl(object):
         <node>
             <interface name='{}'>
             <method name='kill'/>
-            <method name='seek'>
-                <arg type='d' name='at_time_seconds' direction='in' />
-                <arg type='d' name='timeout'         direction='in' />
-                <arg type='d' name='seek_return'     direction='out'/>
+            <method name='bag_duration'>
+                <arg type='d' name='timeout'                 direction='in' />
+                <arg type='d' name='bag_duration_return'     direction='out'/>
+            </method>
+            <method name='preload_duration'>
+                <arg type='d' name='preload_duration_return'     direction='out'/>
             </method>
             <method name='read'>
                 <arg type='d' name='duration_seconds'   direction='in' />
@@ -254,9 +265,6 @@ class PublicationControl(object):
 
         # create clock publisher
         self._clock_publisher = rospy.Publisher("/clock", Clock, queue_size=100)
-
-        # set bag to start
-        self._initial_seek_lock = True
 
 
     def _create_publisher( self, msg_cont ):
@@ -301,36 +309,6 @@ class PublicationControl(object):
         self._set_terminate( ExitStatus.OK, "recieved 'kill' d-bus signal" )
         self._loop.quit()
 
-
-    def seek( self, t, timeout ):
-        """
-        d-bus method to terminate the read loop and seek to t seconds from start of bag(or as close as possible)
-        returns the length of the bag in seconds.
-
-        RVN::NB: Seeking back in time can cause problems with parts of ROS that are not robust to -ve time jumps
-        (especially the tf tree!). The seek lock allows you to do this once, but you really should restart
-        ros if you want to do this repeatedly.
-        """
-        self.bag_reader.wait_for_bag(timeout)
-
-        dt = self.bag_reader.get_dt() #self.bag_reader.clock_out.to_sec()-self.bag_reader.get_start_time()
-        rospy.loginfo("recieved 'seek' signal after {} sec of playback. Seeking to {}".format( dt ,t))
-
-        if t < dt and not self._initial_seek_lock:
-            rospy.logwarn("You are attempting to perform a seek back in time. This *may* cause problems with existing TF trees")
-
-        try:
-            self.bag_reader.reseek(t, timeout=timeout)
-        except Exception as e:
-            rospy.logerr("Unable To Seek! {}".format(e))
-
-        # republish new clock time and clear the initial seek lock
-        self._clock_publisher.publish( self.bag_reader.clock_out )
-        self._initial_seek_lock = False
-
-        return self.bag_reader.get_duration()
-
-
     def read( self, duration, timeout ):
         """
         d-bus method to read and publish the frame over duration.
@@ -342,8 +320,6 @@ class PublicationControl(object):
         tf tree.
         """
         self.bag_reader.wait_for_bag(timeout)
-
-        if self._initial_seek_lock: return 0.0
 
         old_clock = rospy.Time(0)
         clock_dt  = rospy.Duration(0.01) # RVN:FIX: This is Hard Coded!
@@ -372,7 +348,13 @@ class PublicationControl(object):
         return old_clock.to_sec()
 
 
+    def bag_duration(self,timeout):
+        self.bag_reader.wait_for_bag(timeout)
+        self.bag_reader.reseek(0.0,timeout)
+        return self.bag_reader.get_duration()
 
+    def preload_duration(self):
+        return self.bag_reader.get_preload_duration()
 # ----------------------------------------------------------------------------------------------------------------------
 
 def main():
