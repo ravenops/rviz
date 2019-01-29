@@ -138,7 +138,6 @@ public:
   int venc_width_,venc_height_ = 0;
   VideoEncoder *venc_,*venc_keyed_ = NULL;
   bool thumbnail_taken = false;
-  double bag_start = 0.0;
   uint8_t* pixbuf = NULL;
 };
 
@@ -476,29 +475,33 @@ void VisualizationManager::onUpdate()
   //     dump_images_config_->bagDuration
   //   );
 
-  bool should_render = false;
   bool should_dump = false;
 
   boost::mutex::scoped_lock lock(private_->render_mutex_);
   if(dump_enabled)
   {
     // ROS_INFO("<%d> wall clock %f", uint(frame_count_), last_update_wall_time_.toSec());
-    if(dump_images_config_->bagDuration == 0.0)
+    if(!dump_images_config_->bagDuration > 0)
     {
         QDBusReply<double> reply = dbus_->call("bag_duration", dump_images_config_->timeout);
         dump_images_config_->bagDuration = reply.value();
         ROS_INFO("Bag duration: %.10f sec",dump_images_config_->bagDuration);
-    }else if(dump_images_config_->preloadDuration == 0.0)
-    {
-        QDBusReply<double> reply = dbus_->call("preload_duration");
-        dump_images_config_->preloadDuration  = reply.value();
     }
 
-    if(dump_images_config_->bagDuration > 0.0 && // bag loaded
-       rosTime >= dump_images_config_->lastEventTime) // we've actually moved forward
+    if(!dump_images_config_->preloadDuration > 0)
+    {
+        QDBusReply<double> reply = dbus_->call("preload_duration");
+        double duration = reply.value();
+        if (duration > 0){
+            dump_images_config_->preloadDuration  = duration;
+        }
+    }
+
+    if(dump_images_config_->bagDuration > 0 && // bag loaded
+       (rosTime >= dump_images_config_->lastEventTime || ! dump_images_config_->nextTime > 0)) // we've actually moved forward or are just starting
     {
         nextFrame();
-        if (dump_images_config_->preloadDuration > 0.0 && // preload sequence played
+        if (dump_images_config_->preloadDuration > 0 && // preload sequence played
             dump_images_config_->lastEventTime > dump_images_config_->preloadDuration) // we've rendered the preload sequence
             {
                 should_dump = true;
@@ -506,17 +509,11 @@ void VisualizationManager::onUpdate()
     }
   }
 
-  if ( render_requested_ || wall_dt > 0.01 )
-  {
-      should_render = true;
-  }
-
-  if (should_render){
-      render_requested_ = 0;
-      ogre_root_->renderOneFrame();
-  }
   if (should_dump)
   {
+      render_requested_ = 0;
+      ogre_root_->renderOneFrame();
+
       QImage img = screen_->grabWindow(0).toImage();
       if (img.width() % 8 || img.height() % 8) {
           // ensure screenshot width are height are divisible by four
@@ -608,7 +605,7 @@ void VisualizationManager::onUpdate()
 
       // thumbnail
       double midway = dump_images_config_->bagDuration / 2.0;
-      double curTime = dump_images_config_->lastEventTime - private_->bag_start;
+      double curTime = dump_images_config_->lastEventTime;
       if ( curTime >= midway && !private_->thumbnail_taken )
       {
           private_->thumbnail_taken = true;
