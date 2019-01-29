@@ -25,6 +25,7 @@ struct DumpImagesConfig {
   double bagDuration;
   double nextTime;
   double lastEventTime;
+  double preloadDuration;
 };
 
 } // namespace rviz
