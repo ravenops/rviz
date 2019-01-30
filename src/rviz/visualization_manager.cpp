@@ -481,28 +481,28 @@ void VisualizationManager::onUpdate()
   if(dump_enabled)
   {
     // ROS_INFO("<%d> wall clock %f", uint(frame_count_), last_update_wall_time_.toSec());
-    if(!dump_images_config_->bagDuration > 0)
+    if(dump_images_config_->bagDuration < 0)
     {
         QDBusReply<double> reply = dbus_->call("bag_duration", dump_images_config_->timeout);
         dump_images_config_->bagDuration = reply.value();
         ROS_INFO("Bag duration: %.10f sec",dump_images_config_->bagDuration);
     }
 
-    if(!dump_images_config_->preloadDuration > 0)
+    if(dump_images_config_->preloadDuration < 0)
     {
         QDBusReply<double> reply = dbus_->call("preload_duration");
         double duration = reply.value();
-        if (duration > 0){
+        if (duration >= 0){
             dump_images_config_->preloadDuration  = duration;
         }
     }
 
-    if(dump_images_config_->bagDuration > 0 && // bag loaded
-       (rosTime >= dump_images_config_->lastEventTime || ! dump_images_config_->nextTime > 0)) // we've actually moved forward or are just starting
+    if(dump_images_config_->bagDuration >= 0 && // bag loaded
+       (rosTime >= dump_images_config_->lastEventTime || dump_images_config_->nextTime < 0)) // we've actually moved forward or are just starting
     {
         nextFrame();
-        if (dump_images_config_->preloadDuration > 0 && // preload sequence played
-            dump_images_config_->lastEventTime > dump_images_config_->preloadDuration) // we've rendered the preload sequence
+        if (dump_images_config_->preloadDuration >= 0 && // preload sequence played
+            dump_images_config_->lastEventTime >= dump_images_config_->preloadDuration) // we've rendered the preload sequence
             {
                 should_dump = true;
             }
