@@ -266,9 +266,6 @@ class PublicationControl(object):
         # create clock publisher
         self._clock_publisher = rospy.Publisher("/clock", Clock, queue_size=100)
 
-        # set bag to start
-        self._initial_seek_lock = True
-
 
     def _create_publisher( self, msg_cont ):
         try:
@@ -323,8 +320,6 @@ class PublicationControl(object):
         tf tree.
         """
         self.bag_reader.wait_for_bag(timeout)
-
-        if self._initial_seek_lock: return 0.0
 
         old_clock = rospy.Time(0)
         clock_dt  = rospy.Duration(0.01) # RVN:FIX: This is Hard Coded!
