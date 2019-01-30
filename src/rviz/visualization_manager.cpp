@@ -507,7 +507,15 @@ void VisualizationManager::onUpdate()
                 should_dump = true;
             }
     }
+  }else{
+
+      // "regular" non-dumping render behavior
+      if(render_requested_ || wall_dt > 0.01){
+          render_requested_ = 0;
+          ogre_root_->renderOneFrame();
+      }
   }
+
 
   if (should_dump)
   {
@@ -647,11 +655,6 @@ void VisualizationManager::onUpdate()
 
           dbus_->call("kill");
           exit(EXIT_SUCCESS);
-      }
-  }else{
-      if(render_requested_ || wall_dt > 0.01){
-          render_requested_ = 0;
-          ogre_root_->renderOneFrame();
       }
   }
 }
