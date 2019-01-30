@@ -498,7 +498,7 @@ void VisualizationManager::onUpdate()
     }
 
     if(dump_images_config_->bagDuration >= 0 && // bag loaded
-       (rosTime >= dump_images_config_->lastEventTime || dump_images_config_->nextTime < 0)) // we've actually moved forward or are just starting
+       (rosTime >= dump_images_config_->lastEventTime || dump_images_config_->nextTime > 0)) // we've actually moved forward or are just starting
     {
         nextFrame();
         if (dump_images_config_->preloadDuration >= 0 && // preload sequence played

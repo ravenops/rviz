@@ -289,7 +289,7 @@ bool VisualizerApp::init(int argc, char **argv)
         dump_images_config->timeout = vm["dump-timeout"].as<float>();
         dump_images_config->frameWidth = ((float) dump_images_config->fpsDen) / ((float) dump_images_config->fpsNum);
         dump_images_config->bagDuration = -1.0;
-        dump_images_config->nextTime = -1.0;
+        dump_images_config->nextTime = 0;
         dump_images_config->lastEventTime = -1.0;
         dump_images_config->preloadDuration = -1.0;
       }
