@@ -648,6 +648,11 @@ void VisualizationManager::onUpdate()
           dbus_->call("kill");
           exit(EXIT_SUCCESS);
       }
+  }else{
+      if(render_requested_ || wall_dt > 0.01){
+          render_requested_ = 0;
+          ogre_root_->renderOneFrame();
+      }
   }
 }
 
