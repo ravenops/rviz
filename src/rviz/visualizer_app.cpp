@@ -115,7 +115,6 @@ std::map<std::string,std::string> VisualizerApp::env_param_names =
      {"RVN_RVIZ_THUMB_WIDTH", "thumb-width"},
      {"RVN_RVIZ_DUMP_FPS_NUM", "dump-fps-num"},
      {"RVN_RVIZ_DUMP_FPS_DEN", "dump-fps-den"},
-     {"RVN_RVIZ_DUMP_DELAY", "dump-delay"},
      {"RVN_RVIZ_DUMP_TIMEOUT", "dump-timeout"},
      {"RVN_RVIZ_MAX_WIDTH", "max-width"},
     };
@@ -171,7 +170,6 @@ bool VisualizerApp::init(int argc, char **argv)
       ("max-width", po::value<int>()->default_value(1920), "maximum width of outputted encoded mp4 video streams")
       ("dump-fps-num",po::value<int>()->default_value(30), "Numerator of frames per second for dumped x264 stream.  Must be an integer.")
       ("dump-fps-den",po::value<int>()->default_value(1), "Denominator number of frames per second for dumped x264 stream.  Must be an integer.")
-      ("dump-delay",po::value<float>()->default_value(1.5), "Delay X seconds until seeking bag file on DBus.")
       ("dump-timeout",po::value<float>()->default_value(30), "Retry initial connection to DBus for X seconds failing.");
 
     po::variables_map vm;
@@ -290,7 +288,6 @@ bool VisualizerApp::init(int argc, char **argv)
         dump_images_config->fpsDen = vm["dump-fps-den"].as<int>();
         dump_images_config->timeout = vm["dump-timeout"].as<float>();
         dump_images_config->frameWidth = ((float) dump_images_config->fpsDen) / ((float) dump_images_config->fpsNum);
-        dump_images_config->delayFrames = uint(ceil(vm["dump-delay"].as<float>() * (float) dump_images_config->fpsNum / (float) dump_images_config->fpsDen));
         dump_images_config->bagDuration = 0;
         dump_images_config->nextTime = 0;
         dump_images_config->lastEventTime = 0;

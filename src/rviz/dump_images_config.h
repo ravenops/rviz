@@ -20,7 +20,6 @@ struct DumpImagesConfig {
   int fpsDen;
   double timeout;
 
-  uint delayFrames;
   double frameWidth;
   double bagDuration;
   double nextTime;
