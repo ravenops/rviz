@@ -103,6 +103,7 @@ class BagReader(object):
 
         # set when msg w/ topic = /rvn/rviz/ctrl/preload_end is seen
         self.preload_end_time = None
+        self.first_read = True
 
     def _reached_frame_end( self, t ):
         if t < self._frame_end:
@@ -140,7 +141,7 @@ class BagReader(object):
 
     def get_preload_duration(self):
         if self.preload_end_time is None:
-            return 0.0
+            return -1.0
         return self.preload_end_time.to_sec() - self._bag.get_start_time()
 
     def is_latched(self, topic):
@@ -202,7 +203,10 @@ class BagReader(object):
         self.clock_out  = rospy.Time(0)
 
         for topic, raw_msg, t in self._generator:
-
+            if self.first_read:
+                if topic != "/rvn/rviz/ctrl/preload_start":
+                    self.preload_end_time = self._bag.get_start_time()
+                self.first_read = False
             if self._reached_frame_end(t):
                 break
             else:
