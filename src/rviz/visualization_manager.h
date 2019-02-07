@@ -85,6 +85,7 @@ class ViewportMouseEvent;
 class WindowManagerInterface;
 class Tool;
 class OgreRenderQueueClearer;
+class FrameEncode;
 class VisualizationManagerPrivate;
 
 /**
@@ -358,6 +359,7 @@ protected:
   Ogre::SceneManager* scene_manager_;                     ///< Ogre scene manager associated with this panel
 
   QTimer* update_timer_;                                 ///< Update timer.  Display::update is called on each display whenever this timer fires
+  QTimer* dbus_timer_;
   ros::Time last_update_ros_time_;                        ///< Update stopwatch.  Stores how long it's been since the last update
   ros::WallTime last_update_wall_time_;
 
@@ -394,7 +396,7 @@ protected:
   uint64_t dumped_frame_count_;
 
   WindowManagerInterface* window_manager_;
-  
+
   FrameManager* frame_manager_;
 
   OgreRenderQueueClearer* ogre_render_queue_clearer_;

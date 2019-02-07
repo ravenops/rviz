@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <time.h>
 
 #include <libswscale/swscale.h>
 #include <libavcodec/avcodec.h>
@@ -31,11 +32,16 @@ struct _video_encoder {
 
     // for keyed capture
     long long unsigned last_frame_hash;
+
+    // frame rate stats
+    time_t stat_last_frame;
+    time_t stat_first_frame;
+    time_t stat_interval_frame;
+    uint64_t stat_frame_count;
+    uint16_t stat_interval_period;
 };
 
 VideoEncoder* video_encoder_init(VideoEncodeParams params){
-    // RVN:TODO: hardcoded for now
-    params.inFmt = AV_PIX_FMT_RGB32;
 
     VideoEncoder *enc = (VideoEncoder*) malloc(sizeof(VideoEncoder));
     if ( enc == NULL )
@@ -44,6 +50,9 @@ VideoEncoder* video_encoder_init(VideoEncodeParams params){
         return NULL;
     }
     memset(enc,0,sizeof(VideoEncoder));
+    // RVN:TODO: hardcoded for now
+    enc->stat_interval_period = 16;
+    params.inFmt = AV_PIX_FMT_RGB32;
 
     enc->params = params;
     if (enc->params.width % 8 || enc->params.height % 8){
@@ -95,10 +104,10 @@ VideoEncoder* video_encoder_init(VideoEncodeParams params){
 			      SWS_FAST_BILINEAR, NULL, NULL, NULL);
 
     enum AVCodecID codec_id = AV_CODEC_ID_H264;
-    // codec
-    AVCodec *codec = avcodec_find_encoder(codec_id);
+
+    AVCodec *codec = avcodec_find_encoder_by_name(enc->params.h264Encoder);
     if (!codec){
-        fprintf(stderr,"Could not find h264 codec: %d\n",codec_id);
+        fprintf(stderr,"Could not find h264 codec: %d %s\n",codec_id,enc->params.h264Encoder);
         return NULL;
     }
 
@@ -129,10 +138,10 @@ VideoEncoder* video_encoder_init(VideoEncodeParams params){
     enc->cc->height = enc->out_height;
     enc->st->time_base = (AVRational){enc->params.fpsDen,enc->params.fpsNum};
     enc->cc->time_base = enc->st->time_base;
-
     enc->cc->pix_fmt = enc->frame_scaled->format;
 
-    enc->cc->profile = FF_PROFILE_H264_BASELINE;
+    // RVN:TODO this is good neighboor mode. probably should have drag race mode
+    //enc->cc->thread_count = 1;
 
     if (enc->oc->oformat->flags & AVFMT_GLOBALHEADER)
         enc->cc->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
@@ -141,13 +150,38 @@ VideoEncoder* video_encoder_init(VideoEncodeParams params){
     AVDictionary *opt = NULL;
     av_dict_copy(&opt, NULL, 0);
 
-    //crf
-    char crf_str[5];
-    sprintf(crf_str,"%.1f",enc->params.crf);
-    av_dict_set(&opt, "crf", crf_str, 0);
+    if(strcmp(enc->params.h264Encoder,"libx264") == 0){
+        //crf
+        char crf_str[5];
+        sprintf(crf_str,"%.1f",enc->params.crf);
+        av_dict_set(&opt, "crf", crf_str, 0);
 
-    //preset
-    av_dict_set(&opt, "preset", enc->params.preset, 0);
+        //preset
+        av_dict_set(&opt, "preset", enc->params.preset, 0);
+        av_dict_set(&opt, "profile", "baseline", 0);
+
+    }else if(strcmp(enc->params.h264Encoder,"h264_nvenc") == 0){
+        // top level
+        //av_dict_set_int(&opt,"2pass",1,0);
+        av_dict_set(&opt,"preset","slow",0);
+        /* //        av_dict_set(&opt,"profile","high",0); */
+
+        /* // rate control */
+        /* /\* av_dict_set(&opt,"rc","vbr",0); *\/ */
+        /* /\* av_dict_set_int(&opt,"rc-lookahead",64,0); *\/ */
+        /* /\* av_dict_set_int(&opt,"surfaces",32,0); *\/ */
+
+        //fancies
+        /* av_dict_set_int(&opt,"spatial-aq",1,0); */
+        /* av_dict_set_int(&opt,"temporal-aq",1,0); */
+        /* av_dict_set_int(&opt,"aq-strength",15,0); */
+
+        //don't need
+        av_dict_set_int(&opt,"no-scenecut",1,0);
+    }else{
+        fprintf(stderr,"Unsupported encoder name: %s\n",enc->params.h264Encoder);
+        return NULL;
+    }
 
     /* open the codec */
     ret = avcodec_open2(enc->cc, codec, &opt);
@@ -202,6 +236,7 @@ static int video_encoder_send_frame(VideoEncoder *enc, AVFrame *frame){
         fprintf(stderr, "error encoding video frame: %s\n", av_err2str(ret));
         return ret;
     }
+
     while (1)
     {
         av_init_packet(&enc->pbuf);
@@ -232,6 +267,50 @@ static int video_encoder_send_frame(VideoEncoder *enc, AVFrame *frame){
 }
 
 int video_encoder_encode_frame(VideoEncoder *enc, const uint8_t *pixels){
+    // this is (the only!!!) current system time for the duration of this function
+    time_t now = time(NULL);
+
+    // begin atomic book-keeping update (if ever parallelized)
+    enc->stat_last_frame = now;
+    if (enc->stat_frame_count){
+        // print frame-rate stats
+
+        if(enc->stat_frame_count % enc->stat_interval_period == 0){
+
+            // summary printout
+            double ifps = difftime(enc->stat_last_frame,enc->stat_interval_frame);
+            double cfps = difftime(enc->stat_last_frame,enc->stat_first_frame);
+
+            if(ifps > 0.0){
+                ifps = ((double) enc->stat_interval_period) / ifps;
+            }else{
+                fprintf(stderr,"rviz_ve: non-positive time elapsed in interval %ld -> %ld\n",enc->stat_first_frame,enc->stat_interval_frame);
+            }
+
+            if(cfps > 0.0){
+                cfps = ((double) enc->stat_frame_count) / cfps;
+            }else{
+                fprintf(stderr,"rviz_ve: non-positive time elapsed overall %ld -> %ld\n",enc->stat_first_frame,enc->stat_last_frame);
+            }
+
+            const char* pfx = " ";
+            if ( enc->params.keyed ){
+                pfx = " [keyed] ";
+            }
+            //            fprintf(stdout,"rviz_ve:%s[ %lu ] FPS: interval= %.4f Hz  cum= %.4f Hz\n",pfx,enc->stat_frame_count, ifps,cfps);
+            //fflush(stdout);
+            //fflush(stderr);
+            // stat state
+            enc->stat_interval_frame = now;
+        }
+    }else{
+        // first frame
+        enc->stat_first_frame = now;
+        enc->stat_interval_frame = now;
+    }
+
+    enc->stat_frame_count+=1;
+    // end atomic book-keeping update
 
     int bytesFilled = av_image_fill_arrays(enc->frame_raw->data,
                                            enc->frame_raw->linesize,

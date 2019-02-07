@@ -117,6 +117,9 @@ std::map<std::string,std::string> VisualizerApp::env_param_names =
      {"RVN_RVIZ_DUMP_FPS_DEN", "dump-fps-den"},
      {"RVN_RVIZ_DUMP_TIMEOUT", "dump-timeout"},
      {"RVN_RVIZ_MAX_WIDTH", "max-width"},
+     {"RVN_RVIZ_EXPECT_X11_WIDTH","expect-x11-width"},
+     {"RVN_RVIZ_EXPECT_X11_HEIGHT","expect-x11-height"},
+     {"RVN_RVIZ_H264_ENCODER","h264-encoder"},
     };
 
 void VisualizerApp::setApp(QApplication *app)
@@ -168,9 +171,12 @@ bool VisualizerApp::init(int argc, char **argv)
       ("thumb-width",po::value<int>()->default_value(128), "width for thumbnail")
       ("poster-out",po::value<std::string>()->default_value("captured_poster.jpg"), "Output path for poster (fullsize thumbnail) jpg file")
       ("max-width", po::value<int>()->default_value(1920), "maximum width of outputted encoded mp4 video streams")
+      ("expect-x11-width", po::value<int>(), "expected width of X11 window")
+      ("expect-x11-height", po::value<int>(), "expected height of X11 window")
       ("dump-fps-num",po::value<int>()->default_value(30), "Numerator of frames per second for dumped x264 stream.  Must be an integer.")
       ("dump-fps-den",po::value<int>()->default_value(1), "Denominator number of frames per second for dumped x264 stream.  Must be an integer.")
-      ("dump-timeout",po::value<float>()->default_value(30), "Retry initial connection to DBus for X seconds failing.");
+      ("dump-timeout",po::value<float>()->default_value(30), "Retry initial connection to DBus for X seconds failing.")
+      ("h264-encoder",po::value<std::string>()->default_value("libx264"), "libav codec name for h264 encoder to use");
 
     po::variables_map vm;
     std::string display_config, fixed_frame, splash_path, help_path;
@@ -288,10 +294,9 @@ bool VisualizerApp::init(int argc, char **argv)
         dump_images_config->fpsDen = vm["dump-fps-den"].as<int>();
         dump_images_config->timeout = vm["dump-timeout"].as<float>();
         dump_images_config->frameWidth = ((float) dump_images_config->fpsDen) / ((float) dump_images_config->fpsNum);
-        dump_images_config->bagDuration = -1.0;
-        dump_images_config->nextTime = 0;
-        dump_images_config->lastEventTime = -1.0;
-        dump_images_config->preloadDuration = -1.0;
+        dump_images_config->expectX11Width = vm["expect-x11-width"].as<int>();
+        dump_images_config->expectX11Height = vm["expect-x11-height"].as<int>();
+        dump_images_config->h264Encoder = vm["h264-encoder"].as<std::string>();
       }
     }
     catch (std::exception &e)
