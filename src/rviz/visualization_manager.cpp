@@ -484,14 +484,35 @@ void VisualizationManager::onUpdate()
     if(dump_images_config_->bagDuration < 0)
     {
         QDBusReply<double> reply = dbus_->call("bag_duration", dump_images_config_->timeout);
+        if (!reply.isValid()){
+            ROS_ERROR(
+                      "Reply for bag duration is not valid: '%s'",
+                      reply.error().message().toStdString().c_str());
+            exit(EXIT_FAILURE);
+        }
+
         dump_images_config_->bagDuration = reply.value();
         ROS_INFO("Bag duration: %.10f sec",dump_images_config_->bagDuration);
+        if (dump_images_config_->bagDuration < dump_images_config_->frameWidth){
+            ROS_ERROR("Bag duration is less than one frame, will abort");
+            dbus_->call("kill");
+            exit(EXIT_FAILURE);
+        }
     }
 
     if(dump_images_config_->preloadDuration < 0)
     {
         QDBusReply<double> reply = dbus_->call("preload_duration");
+        if (!reply.isValid()){
+            ROS_ERROR(
+                      "Reply for preload duration is not valid: '%s'",
+                      reply.error().message().toStdString().c_str());
+            dbus_->call("kill");
+            exit(EXIT_FAILURE);
+        }
+
         double duration = reply.value();
+
         if (duration >= 0){
             dump_images_config_->preloadDuration  = duration;
         }
@@ -668,6 +689,7 @@ void VisualizationManager::nextFrame()
     ROS_ERROR(
         "Reply for frame width not valid, can't continue. '%s'",
         reply.error().message().toStdString().c_str());
+    dbus_->call("kill");
     exit(EXIT_FAILURE);
   }
 
