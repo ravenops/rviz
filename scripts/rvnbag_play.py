@@ -145,7 +145,7 @@ class BagReader(object):
     def get_preload_duration(self):
         if self.preload_end_time is None:
             return -1.0
-        return self.preload_end_time.to_sec() - self._bag.get_start_time()
+        return self.preload_end_time - self._bag.get_start_time()
 
     def is_latched(self, topic):
         """get the latching status of this topic"""
@@ -214,7 +214,7 @@ class BagReader(object):
                 break
             else:
                 if topic == "/rvn/rviz/ctrl/preload_end":
-                    self.preload_end_time = t
+                    self.preload_end_time = t.to_sec()
                 frame.append( MessageContainer(topic, raw_msg=raw_msg, t=t) )
                 if self.clock_out < frame[-1].time_of_bagging:
                     self.clock_out = frame[-1].time_of_bagging
