@@ -11,6 +11,7 @@ Raven Rosbag player, using D-Bus to communicate to the RvnRviz renderer
 
 # General Python Imports
 import os
+import sys
 import time
 import argparse
 import threading
@@ -116,7 +117,9 @@ class BagReader(object):
         try:
             self._bag = rosbag.Bag(bagfilename)
         except Exception as e:
-            raise Exception("unable to load bagfile from path '{}': {}".format(bagfilename,e))
+            sys.exit("FATAL: exception encountered: unable to load bagfile from path '{}': reason = {}".format(bagfilename,e))
+        except:
+            sys.exit("FATAL: unexpected error: unable to load bagfile from path '{}': reason = {}".format(bagfilename,sys.exc_info()[0]))
 
         self.event.set()
 
