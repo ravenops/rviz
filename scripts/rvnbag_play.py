@@ -153,7 +153,7 @@ class BagReader(object):
             connection_filter = self._header_callback )
 
         # reset clock
-        self.clock_out = seek_point / stime_factor
+        self.clock_out = rospy.Time(seek_point.to_sec() / stime_factor)
 
 
     def get_next_frame( self, durationSec, timeout=30.0 ):
@@ -290,7 +290,7 @@ class PublicationControl(object):
         self.bag_reader.wait_for_bag(timeout)
 
         old_clock = self.bag_reader.clock_out
-        clock_dt  = rospy.Duration(0.01) # RVN:FIX: This is Hard Coded!
+        clock_dt  = rospy.Duration(0.01/stime_factor) # RVN:FIX: This is Hard Coded!
 
         # ROS OK check
         if rospy.is_shutdown():
