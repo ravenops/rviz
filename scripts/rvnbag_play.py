@@ -153,7 +153,7 @@ class BagReader(object):
             connection_filter = self._header_callback )
 
         # reset clock
-        self.clock_out = seek_point
+        self.clock_out = seek_point / stime_factor
 
 
     def get_next_frame( self, durationSec, timeout=30.0 ):
@@ -311,7 +311,7 @@ class PublicationControl(object):
             old_clock = self.bag_reader.clock_out
             self._clock_publisher.publish(self.bag_reader.clock_out)
 
-        return old_clock.to_sec() - self.bag_reader._bag.get_start_time()
+        return (stime_factor*old_clock.to_sec()) - self.bag_reader._bag.get_start_time()
 
 
     def bag_duration(self,timeout):
