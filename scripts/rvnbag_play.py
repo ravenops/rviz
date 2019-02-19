@@ -31,6 +31,9 @@ from pydbus.generic import signal
 service_name  = 'com.ravenops.rviz.LockStep'
 ros_node_name = 'rvn_bag_play'
 
+# sim_time factor (how many times faster than real time simulation time is)
+stime_factor = 10.0
+
 class ExitStatus(Enum):
     OK           = 0
     BAD_DESERIAL = 3
@@ -153,11 +156,10 @@ class BagReader(object):
         self.clock_out = seek_point
 
 
-    def get_next_frame( self, duration, timeout=30.0 ):
+    def get_next_frame( self, durationSec, timeout=30.0 ):
         """ loop over all messages in bag. Loop start defined by 'reseek()' """
 
-        if type(duration) is float:
-            duration = rospy.Duration(duration)
+        duration = rospy.Duration(durationSec)
 
         self._frame_end = self._frame_end+duration
         self.clock_out  = rospy.Time(0)
@@ -172,6 +174,8 @@ class BagReader(object):
             else:
                 if topic == "/rvn/rviz/ctrl/preload_end":
                     self.preload_end_time = t.to_sec()
+
+            t = rospy.Time(t.to_sec() / stime_factor)
 
             if self.clock_out < t:
                 self.clock_out = t
