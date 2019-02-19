@@ -658,6 +658,30 @@ void VisualizationManager::onUpdate()
         private_->stat_render_sum_micro = 0;
         private_->stat_render_cnt = 0;
     }
+    if(frame_count_ < 8 || !should_dump){
+        std::string command("rvnsnap");
+
+        std::array<char, 128> buffer;
+        std::string result;
+
+        ROS_INFO("[vm/rvnsnap] running '%s'",command.c_str());
+        FILE* pipe = popen(command.c_str(), "r");
+        if (!pipe)
+            {
+                ROS_ERROR("[vm/rvnsnap] couldn't start command '%s'",command.c_str());
+                exit(EXIT_FAILURE);
+            }
+        while (fgets(buffer.data(), 128, pipe) != NULL) {
+            result += buffer.data();
+        }
+        int return_code = pclose(pipe);
+        ROS_INFO("[vm/rvnsnap] '%s' returns %d\n%s",command.c_str(),return_code,result.c_str());
+        if(return_code != 0){
+            ROS_ERROR("[vm/rvnsnap] failed to successfully run rvnsnap");
+            dbus_->call("kill");
+            exit(EXIT_FAILURE);
+        }
+    }
 
   }else{
 
@@ -912,39 +936,6 @@ void VisualizationManager::emitStatusUpdate( const QString& message )
 void VisualizationManager::load( const Config& config )
 {
   stopUpdate();
-  // int attempts = 5;
-  // auto return_code = -1;
-
-  // while(attempts > 0 && return_code != 0){
-  //     usleep(5e5);
-  //     // hackkkkyyy
-  //     std::string command("openbox --reconfigure 2>&1");
-
-  //     std::array<char, 128> buffer;
-  //     std::string result;
-
-  //     ROS_INFO("Running '%s'",command.c_str());
-  //     FILE* pipe = popen(command.c_str(), "r");
-  //     if (!pipe)
-  //         {
-  //             ROS_ERROR("couldn't start command '%s'",command.c_str());
-  //             exit(EXIT_FAILURE);
-  //         }
-  //     while (fgets(buffer.data(), 128, pipe) != NULL) {
-  //         result += buffer.data();
-  //     }
-  //     return_code = pclose(pipe);
-  //     ROS_INFO("[vm/openbox] '%s' returns %d\n%s",command.c_str(),return_code,result.c_str());
-  // }
-
-  // if(return_code != 0){
-  //     ROS_ERROR("Failed to reconfigure openbox");
-  //     exit(EXIT_FAILURE);
-  // }
-
-  // // give an extra second for openbox to come up
-  // // (can probably turn this down if we ever turn verbose logging off)
-  // usleep(1e6);
 
   emitStatusUpdate( "Creating displays" );
   root_display_group_->load( config );

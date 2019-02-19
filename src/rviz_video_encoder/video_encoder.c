@@ -163,18 +163,18 @@ VideoEncoder* video_encoder_init(VideoEncodeParams params){
     }else if(strcmp(enc->params.h264Encoder,"h264_nvenc") == 0){
         // top level
         //av_dict_set_int(&opt,"2pass",1,0);
-        av_dict_set(&opt,"preset","lossless",0);
+        av_dict_set(&opt,"preset","slow",0);
         av_dict_set(&opt,"profile","high",0);
 
-        /* // rate control */
-        /* /\* av_dict_set(&opt,"rc","vbr",0); *\/ */
-        av_dict_set_int(&opt,"rc-lookahead",64,0);
-
+        av_dict_set(&opt,"rc","constqp",0);
+        av_dict_set_int(&opt,"qp",23,0);
+        /* av_dict_set_int(&opt,"rc-lookahead",64,0); */
 
         //fancies
-        av_dict_set_int(&opt,"spatial-aq",1,0);
-        av_dict_set_int(&opt,"temporal-aq",1,0);
-        av_dict_set_int(&opt,"aq-strength",15,0);
+        //av_dict_set_int(&opt,"spatial-aq",1,0);
+        // av_dict_set_int(&opt,"temporal-aq",1,0);
+        /* av_dict_set_int(&opt,"aq-strength",15,0); */
+
 
         //don't need
         av_dict_set_int(&opt,"no-scenecut",1,0);
