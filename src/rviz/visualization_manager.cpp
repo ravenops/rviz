@@ -200,7 +200,7 @@ public:
 
   FrameEncode *rfe,*kfe = NULL;
 
-  boost::thread venc_thread,kvenc_thread,dbus_thread;
+  boost::thread venc_thread,keyed_venc_thread,dbus_thread;
 };
 
 VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesConfig* dump_images_config, WindowManagerInterface* wm, boost::shared_ptr<tf::TransformListener> tf )
@@ -570,7 +570,7 @@ void VisualizationManager::onUpdate()
       {
           // wait for venc threads to finish up
           private_->venc_thread.join();
-          private_->kvenc_thread.join();
+          private_->keyed_venc_thread.join();
 
           // destroy encoders
           video_encoder_destroy(private_->venc_);
@@ -777,7 +777,7 @@ void VisualizationManager::onUpdate()
 
           // wait for previous venc threads
           private_->venc_thread.join();
-          private_->kvenc_thread.join();
+          private_->keyed_venc_thread.join();
       }
       // at this point, all venc_threads should be gone
 
@@ -788,7 +788,7 @@ void VisualizationManager::onUpdate()
 
       // Encode frame for each output stream
       private_->venc_thread = boost::thread(boost::bind(&FrameEncode::encode , private_->rfe));
-      private_->kvenc_thread = boost::thread(boost::bind(&FrameEncode::encode , private_->kfe));
+      private_->keyed_venc_thread = boost::thread(boost::bind(&FrameEncode::encode , private_->kfe));
 
       // thumbnail
       double midway = private_->bag_duration / 2.0;
