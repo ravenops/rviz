@@ -28,6 +28,10 @@ typedef struct {
     // path to output file: ie: /a/b/c/captured.mp4
     // will auto-detect container format based on file extension.
     const char* output_path;
+
+    // name of libav codec to use
+    const char* h264Encoder;
+
 } VideoEncodeParams;
 
 VideoEncoder* video_encoder_init(VideoEncodeParams args);

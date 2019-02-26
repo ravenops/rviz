@@ -3,10 +3,10 @@ add_library(rviz_video_encoder
 )
 
 target_link_libraries(rviz_video_encoder
-  "swscale"
-  "avcodec"
-  "avutil"
-  "avformat"
+  "swscale_rvn1"
+  "avcodec_rvn1"
+  "avutil_rvn1"
+  "avformat_rvn1"
   "xxhash"
 )
 

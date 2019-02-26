@@ -40,48 +40,6 @@ class ExitStatus(Enum):
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-class MessageContainer(object):
-    """
-    It is much more convenient to have a message holder class than try and untangle the
-    tupple supplied
-    """
-    def __init__(self, topic, raw_msg=None, t=rospy.Time()):
-        self.topic           = topic
-        self.msg_class       = raw_msg[-1]
-        self.raw_msg_data    = raw_msg[1]
-        self.time_of_bagging = t
-
-
-    def deserialize( self ):
-        """ create an instance of the message class and return it """
-        if not self.raw_msg_data or not self.msg_class:
-            raise Exception("either raw msg or class are invalid.\n\traw_msg: {}\n\tmsg_class: {}".format(self.raw_msg_data,self.msg_class))
-            return
-
-        try:
-            cls = self.msg_class()
-        except Exception as e:
-            raise Exception("Unable to create an instance of the message class: {}".format(e))
-
-        try:
-            msg = cls.deserialize(self.raw_msg_data)
-        except Exception as e:
-            raise Exception("Unable to deserialize raw message data into message: {}".format(e))
-
-        return msg
-
-
-    def msg_in_time_window( self, start, end ):
-        """ returns t/f if the message bagging timestamp within the window """
-        if start <= self.time_of_bagging and self.time_of_bagging <= end:
-            return True
-        else:
-            return False
-
-
-
-
-# ----------------------------------------------------------------------------------------------------------------------
 class BagReader(object):
     """ Responsible for loading the bag. Will yield a generator for all messages within a given time window """
 
@@ -201,7 +159,6 @@ class BagReader(object):
         if type(duration) is float:
             duration = rospy.Duration(duration)
 
-        frame=[]
         self._frame_end = self._frame_end+duration
         self.clock_out  = rospy.Time(0)
 
@@ -215,12 +172,13 @@ class BagReader(object):
             else:
                 if topic == "/rvn/rviz/ctrl/preload_end":
                     self.preload_end_time = t.to_sec()
-                frame.append( MessageContainer(topic, raw_msg=raw_msg, t=t) )
-                if self.clock_out < frame[-1].time_of_bagging:
-                    self.clock_out = frame[-1].time_of_bagging
 
-        return frame
+            if self.clock_out < t:
+                self.clock_out = t
 
+            yield {"topic" : topic, "raw_msg" : raw_msg, "t": t}
+
+        return
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -271,37 +229,36 @@ class PublicationControl(object):
         rospy.loginfo("...Done")
 
         # create clock publisher
-        self._clock_publisher = rospy.Publisher("/clock", Clock, queue_size=100)
+        self._clock_publisher = rospy.Publisher("/clock", Clock, queue_size=1, tcp_nodelay=True)
 
 
-    def _create_publisher( self, msg_cont ):
+    def _create_publisher( self, topic, msg_class ):
         try:
             new_pub = rospy.Publisher(
-                msg_cont.topic,
-                msg_cont.msg_class,
-                latch      = self.bag_reader.is_latched(msg_cont.topic),
-                queue_size = 1000 ) # RVN::FIX: queue_size=???
-
+                topic,
+                msg_class,
+                latch      = self.bag_reader.is_latched(topic),
+                queue_size = 16,
+                tcp_nodelay = True,
+            )
         except Exception as e:
-            self._set_terminate( ExitStatus.PUB_FAIL, "Cannot create publisher for '{}' topic: {}".format(msg_cont.topic,e))
+            self._set_terminate( ExitStatus.PUB_FAIL, "Cannot create publisher for '{}' topic: {}".format(topic,e))
+            return
 
-        self._all_publishers[msg_cont.topic] = new_pub
+        self._all_publishers[topic] = new_pub
 
 
-    def _publish_msg( self, msg_cont ):
+    def _publish_msg( self, msg ):
 
         # clock message is special and we handle it specially!
-        if msg_cont.topic == "/clock": return
+        if msg["topic"] == "/clock": return
 
-        if msg_cont.topic not in self._all_publishers:
-            self._create_publisher(msg_cont)
+        if msg["topic"] not in self._all_publishers:
+            self._create_publisher(msg["topic"],msg["raw_msg"][-1])
 
-        try:
-            msg = msg_cont.deserialize()
-        except Exception as e:
-            self._set_terminate( ExitStatus.BAD_DESERIAL, "Unable to publish msg to '{}' topic, cannot deserialize: {}".format(msg_cont.topic,e))
-
-        self._all_publishers[msg_cont.topic].publish(msg)
+        pmsg = rospy.msg.AnyMsg()
+        pmsg.deserialize(msg["raw_msg"][1])
+        self._all_publishers[msg["topic"]].publish(pmsg)
 
 
     def _set_terminate( self, code, ex_str="" ):
@@ -328,7 +285,7 @@ class PublicationControl(object):
         """
         self.bag_reader.wait_for_bag(timeout)
 
-        old_clock = rospy.Time(0)
+        old_clock = self.bag_reader.clock_out
         clock_dt  = rospy.Duration(0.01) # RVN:FIX: This is Hard Coded!
 
         # ROS OK check
@@ -338,21 +295,19 @@ class PublicationControl(object):
 
         # get the frame
         try:
-            frame = self.bag_reader.get_next_frame( duration, timeout=timeout )
+            # publish the message
+            for msg in self.bag_reader.get_next_frame( duration, timeout=timeout ):
+                self._publish_msg( msg )
         except Exception as e:
-            rospy.logerr("unable to get next frame: {}".format(e))
-            return clock_msg.clock.to_sec()
-
-        # publish the message
-        for msg in frame:
-           self._publish_msg( msg )
+            rospy.logerr("unable to get next frame: %r" % (e))
+            return self.bag_reader.clock_out.to_sec()
 
         # return the clock via d-bus and possibly publish to system
         if self.bag_reader.clock_out - old_clock > clock_dt:
             old_clock = self.bag_reader.clock_out
             self._clock_publisher.publish(self.bag_reader.clock_out)
 
-        return old_clock.to_sec()
+        return old_clock.to_sec() - self.bag_reader._bag.get_start_time()
 
 
     def bag_duration(self,timeout):

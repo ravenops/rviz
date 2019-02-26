@@ -21,10 +21,9 @@ struct DumpImagesConfig {
   double timeout;
 
   double frameWidth;
-  double bagDuration;
-  double nextTime;
-  double lastEventTime;
-  double preloadDuration;
+  int expectX11Width,expectX11Height;
+
+  std::string h264Encoder;
 };
 
 } // namespace rviz

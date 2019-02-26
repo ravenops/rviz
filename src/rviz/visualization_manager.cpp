@@ -29,6 +29,10 @@
 
 #include <algorithm>
 
+#include <string>
+#include <cstdlib>
+#include <array>
+
 #include <QApplication>
 #include <QCursor>
 #include <QPixmap>
@@ -43,6 +47,7 @@
 #include <boost/bind.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/format.hpp>
+#include <boost/chrono.hpp>
 
 #include <OgreRoot.h>
 #include <OgreSceneManager.h>
@@ -127,6 +132,47 @@ private:
   QIcon icon_;
 };
 
+class FrameEncode
+{
+public:
+    FrameEncode(std::string name, VideoEncoder *enc, uint8_t *pixbuf){
+        this->name = name;
+        this->enc = enc;
+        this->pixbuf = pixbuf;
+    };
+
+public:
+    void encode(){
+        boost::chrono::high_resolution_clock::time_point encode_start;
+        boost::chrono::high_resolution_clock::time_point encode_end;
+        encode_start = boost::chrono::high_resolution_clock::now();
+        int ret = video_encoder_encode_frame(enc, pixbuf);
+        encode_end = boost::chrono::high_resolution_clock::now();
+        if (ret != 0){
+            ROS_ERROR("failed to encode frame: %d", ret);
+            exit(EXIT_FAILURE);
+        }
+        boost::chrono::microseconds dur = boost::chrono::duration_cast<boost::chrono::microseconds>(encode_end-encode_start);
+
+        stat_encode_sum_micro += dur.count();
+        stat_encode_cnt++;
+
+        if(stat_encode_cnt % stat_encode_interval == 0){
+            ROS_INFO("[rviz encode stats] %s ave encode latency %.4fms",name.c_str(),(double) stat_encode_sum_micro / ((double) stat_encode_cnt * 1000.0));
+            stat_encode_cnt=0;
+            stat_encode_sum_micro=0;
+        }
+
+    };
+private:
+    std::string name;
+    VideoEncoder *enc = NULL;
+    uint8_t *pixbuf = NULL;
+
+    uint stat_encode_sum_micro = 0;
+    uint stat_encode_cnt = 0;
+    uint stat_encode_interval = 32;
+};
 class VisualizationManagerPrivate
 {
 public:
@@ -135,15 +181,32 @@ public:
   ros::NodeHandle update_nh_;
   ros::NodeHandle threaded_nh_;
   boost::mutex render_mutex_;
+  boost::mutex dbus_mutex_;
   int venc_width_,venc_height_ = 0;
   VideoEncoder *venc_,*venc_keyed_ = NULL;
   bool thumbnail_taken = false;
   uint8_t* pixbuf = NULL;
+  bool done = false;
+  int dump_req_cnt = 0;
+  double last_event_time = 0;
+  double next_event_time = 0;
+  double last_dump_time = 0;
+  double bag_duration = -1.0;
+  double preload_duration = -1.0;
+
+  uint stat_render_cnt = 0;
+  uint stat_render_sum_micro = 0;
+  uint stat_render_interval = 16;
+
+  FrameEncode *rfe,*kfe = NULL;
+
+  boost::thread venc_thread,keyed_venc_thread,dbus_thread;
 };
 
 VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesConfig* dump_images_config, WindowManagerInterface* wm, boost::shared_ptr<tf::TransformListener> tf )
 : ogre_root_( Ogre::Root::getSingletonPtr() )
 , update_timer_(0)
+, dbus_timer_(0)
 , shutting_down_(false)
 , render_panel_( render_panel )
 , time_update_timer_(0.0f)
@@ -296,12 +359,17 @@ VisualizationManager::VisualizationManager(RenderPanel* render_panel,DumpImagesC
   }
 
   update_timer_ = new QTimer;
-  connect( update_timer_, SIGNAL( timeout() ), this, SLOT( onUpdate() ));
+  dbus_timer_ = new QTimer;
+
+  if(!dump_images_config->enabled){
+      connect( update_timer_, SIGNAL( update_timertimeout() ), this, SLOT( onUpdate() ));
+  }
 }
 
 VisualizationManager::~VisualizationManager()
 {
   delete update_timer_;
+  delete dbus_timer_;
 
   shutting_down_ = true;
   private_->threaded_queue_threads_.join_all();
@@ -366,8 +434,11 @@ ros::CallbackQueueInterface* VisualizationManager::getUpdateQueue()
 
 void VisualizationManager::startUpdate()
 {
-  float interval = 1000.0 / float(fps_property_->getInt());
-  update_timer_->start( interval );
+
+  if (dump_images_config_ == NULL || !dump_images_config_->enabled){
+      float interval = 1000.0 / float(fps_property_->getInt());
+      update_timer_->start( interval );
+  }
 }
 
 void VisualizationManager::stopUpdate()
@@ -407,13 +478,15 @@ void VisualizationManager::queueRender()
 
 void VisualizationManager::onUpdate()
 {
+  bool dump_enabled = dump_images_config_ != NULL && dump_images_config_->enabled;
+
   ros::WallDuration wall_diff = ros::WallTime::now() - last_update_wall_time_;
   ros::Duration ros_diff = ros::Time::now() - last_update_ros_time_;
   float wall_dt = wall_diff.toSec();
   float ros_dt = ros_diff.toSec();
   last_update_ros_time_ = ros::Time::now();
   last_update_wall_time_ = ros::WallTime::now();
-  bool dump_enabled = dump_images_config_ != NULL && dump_images_config_->enabled;
+
 
   if(ros_dt < 0.0)
   {
@@ -466,41 +539,64 @@ void VisualizationManager::onUpdate()
 
   frame_count_++;
 
-  double rosTime = last_update_ros_time_.toSec();
-
   // ROS_INFO(
   //   "fc:%d dc:%d delayFrame:%d bd:%f",
   //   int(frame_count_), int(dumped_frame_count_),
   //     dump_images_config_->delayFrames,
-  //     dump_images_config_->bagDuration
+  //     private_->bag_duration
   //   );
 
   bool should_dump = false;
 
-  boost::mutex::scoped_lock lock(private_->render_mutex_);
-  if(dump_enabled)
-  {
-    // ROS_INFO("<%d> wall clock %f", uint(frame_count_), last_update_wall_time_.toSec());
-    if(dump_images_config_->bagDuration < 0)
-    {
-        QDBusReply<double> reply = dbus_->call("bag_duration", dump_images_config_->timeout);
-        if (!reply.isValid()){
-            ROS_ERROR(
-                      "Reply for bag duration is not valid: '%s'",
-                      reply.error().message().toStdString().c_str());
-            exit(EXIT_FAILURE);
-        }
+  boost::mutex::scoped_lock rb_lock(private_->render_mutex_);
 
-        dump_images_config_->bagDuration = reply.value();
-        ROS_INFO("Bag duration: %.10f sec",dump_images_config_->bagDuration);
-        if (dump_images_config_->bagDuration < dump_images_config_->frameWidth){
-            ROS_ERROR("Bag duration is less than one frame, will abort");
-            dbus_->call("kill");
-            exit(EXIT_FAILURE);
-        }
+  if(dump_enabled){
+
+      // wait for the dbus thread to finish (yay implicit locking)
+      private_->dbus_thread.join();
+
+      if(private_->dump_req_cnt == 0){
+          ROS_WARN("No dumps requested. Will skip frame");
+          return;
+      }else if (private_->dump_req_cnt > 1){
+          ROS_ERROR("Multiple outstanding dump requests. This is currently not allowed");
+          exit(EXIT_FAILURE);
+      }
+      // private_->dump_req_cnt == 1 (or, more generally, a number within the allowed window which is currently 1)
+
+      private_->dump_req_cnt--;
+
+      if(private_->done)
+      {
+          // wait for venc threads to finish up
+          private_->venc_thread.join();
+          private_->keyed_venc_thread.join();
+
+          // destroy encoders
+          video_encoder_destroy(private_->venc_);
+          video_encoder_destroy(private_->venc_keyed_);
+
+          if(private_->pixbuf != NULL){
+              free(private_->pixbuf);
+          }
+          ROS_INFO(
+                   "Finished dumping %f second bag with %d frames.",
+                   private_->bag_duration, uint(dumped_frame_count_)
+                   );
+
+          dbus_->call("kill");
+          exit(EXIT_SUCCESS);
+      }
+
+    // ROS_INFO("<%d> wall clock %f", uint(frame_count_), last_update_wall_time_.toSec());
+    if(private_->bag_duration < dump_images_config_->frameWidth)
+    {
+        ROS_ERROR("Bag duration is less than one frame, will abort");
+        dbus_->call("kill");
+        exit(EXIT_FAILURE);
     }
 
-    if(dump_images_config_->preloadDuration < 0)
+    if(private_->preload_duration < 0)
     {
         QDBusReply<double> reply = dbus_->call("preload_duration");
         if (!reply.isValid()){
@@ -514,20 +610,79 @@ void VisualizationManager::onUpdate()
         double duration = reply.value();
 
         if (duration >= 0){
-            dump_images_config_->preloadDuration  = duration;
+            private_->preload_duration  = duration;
         }
     }
 
-    if(dump_images_config_->bagDuration >= 0 && // bag loaded
-       (rosTime >= dump_images_config_->lastEventTime || dump_images_config_->nextTime > 0)) // we've actually moved forward or are just starting
+
+    private_->next_event_time = private_->last_event_time + dump_images_config_->frameWidth;
+
+    if (private_->next_event_time > private_->bag_duration){
+        private_->done = true;
+    }
+
+    if (private_->preload_duration >= 0)
     {
-        nextFrame();
-        if (dump_images_config_->preloadDuration >= 0 && // preload sequence played
-            dump_images_config_->lastEventTime >= dump_images_config_->preloadDuration) // we've rendered the preload sequence
+        if (private_->last_event_time >= private_->preload_duration &&  // preload is done
+            private_->last_event_time > private_->last_dump_time) // ros world has moved forward
             {
                 should_dump = true;
+                private_->last_dump_time = private_->last_event_time;
             }
     }
+    // Dispatch request for next frame
+    private_->dbus_thread = boost::thread(boost::bind(&VisualizationManager::nextFrame, this));
+
+    // render frame to screen buffer
+    render_requested_ = 0;
+    boost::chrono::high_resolution_clock::time_point render_start;
+    boost::chrono::high_resolution_clock::time_point render_end;
+    render_start = boost::chrono::high_resolution_clock::now();
+    ogre_root_->renderOneFrame(wall_dt);
+    render_end = boost::chrono::high_resolution_clock::now();
+
+    boost::chrono::microseconds dur = boost::chrono::duration_cast<boost::chrono::microseconds>(render_end-render_start);
+
+    private_->stat_render_sum_micro += dur.count();
+    private_->stat_render_cnt++;
+
+    if(private_->stat_render_cnt % private_->stat_render_interval == 0){
+        double ave_render_time = (double) private_->stat_render_sum_micro / (double) private_->stat_render_cnt;
+        ROS_INFO("[rviz update stats] %.4fs of %.4fs (%.2f%%) at %.2ffps %.4fms %s",
+                 private_->last_dump_time, private_->bag_duration,
+                 private_->last_dump_time  * 100.0 / private_->bag_duration,
+                 (double) dumped_frame_count_ / private_->last_event_time,
+                 ave_render_time / 1000.0,
+                 private_->last_event_time >= private_->preload_duration ? "DUMP" : "PRLD");
+
+        private_->stat_render_sum_micro = 0;
+        private_->stat_render_cnt = 0;
+    }
+    if(frame_count_ < 8 || !should_dump){
+        std::string command("rvnsnap");
+
+        std::array<char, 128> buffer;
+        std::string result;
+
+        ROS_INFO("[vm/rvnsnap] running '%s'",command.c_str());
+        FILE* pipe = popen(command.c_str(), "r");
+        if (!pipe)
+            {
+                ROS_ERROR("[vm/rvnsnap] couldn't start command '%s'",command.c_str());
+                exit(EXIT_FAILURE);
+            }
+        while (fgets(buffer.data(), 128, pipe) != NULL) {
+            result += buffer.data();
+        }
+        int return_code = pclose(pipe);
+        ROS_INFO("[vm/rvnsnap] '%s' returns %d\n%s",command.c_str(),return_code,result.c_str());
+        if(return_code != 0){
+            ROS_ERROR("[vm/rvnsnap] failed to successfully run rvnsnap");
+            dbus_->call("kill");
+            exit(EXIT_FAILURE);
+        }
+    }
+
   }else{
 
       // "regular" non-dumping render behavior
@@ -540,10 +695,14 @@ void VisualizationManager::onUpdate()
 
   if (should_dump)
   {
-      render_requested_ = 0;
-      ogre_root_->renderOneFrame();
-
       QImage img = screen_->grabWindow(0).toImage();
+      if ( abs(img.width() - dump_images_config_->expectX11Width) > 32 || abs(img.height() - dump_images_config_->expectX11Height) > 32) {
+          ROS_ERROR("Expected X11 window size mismatch: actual=%dx%d expected=%dx%d",img.width(),img.height(),
+                    dump_images_config_->expectX11Width,dump_images_config_->expectX11Height);
+          ROS_ERROR("Expected X11 size mismatch usually indicates an overloaded (or, more rarely, misconfigured) virtual X11 environment");
+          exit(EXIT_FAILURE);
+      }
+
       if (img.width() % 8 || img.height() % 8) {
           // ensure screenshot width are height are divisible by four
           int w = img.width();
@@ -566,6 +725,8 @@ void VisualizationManager::onUpdate()
                    dump_images_config_->fpsNum, dump_images_config_->fpsDen, img.format());
           // this is the first frame- initialize encoders
           VideoEncodeParams params = {0};
+
+          params.h264Encoder = dump_images_config_->h264Encoder.c_str();
 
           params.width = private_->venc_width_;
           params.height= private_->venc_height_;
@@ -595,6 +756,12 @@ void VisualizationManager::onUpdate()
           // allocate pixel buffer
           private_->pixbuf = (uint8_t*) malloc(sizeof(uint8_t)*img.bytesPerLine()*img.height());
 
+          // allocate frame encode objects
+          // regular
+          private_->rfe = new FrameEncode(std::string("regular"),private_->venc_,private_->pixbuf);
+          // keyed
+          private_->kfe = new FrameEncode(std::string("keyed"),private_->venc_keyed_,private_->pixbuf);
+
       }else{
 
           // Ensure image dimensions have not changed
@@ -607,34 +774,25 @@ void VisualizationManager::onUpdate()
                         private_->venc_width_,private_->venc_height_,img.width(),img.height());
               exit(EXIT_FAILURE);
           }
-      }
 
+          // wait for previous venc threads
+          private_->venc_thread.join();
+          private_->keyed_venc_thread.join();
+      }
+      // at this point, all venc_threads should be gone
 
       // Fill byte array with pixel data
       for (int i = 0; i < img.height(); i++){
-          memcpy(&private_->pixbuf[i*img.bytesPerLine()],img.constScanLine(i),img.bytesPerLine());
+          memcpy(&private_->pixbuf[i*img.bytesPerLine()],img.scanLine(i),img.bytesPerLine());
       }
 
       // Encode frame for each output stream
-      int ret;
-
-      // regular
-      ret = video_encoder_encode_frame(private_->venc_, private_->pixbuf);
-      if (ret != 0){
-          ROS_ERROR("failed to encode frame: %d", ret);
-          exit(EXIT_FAILURE);
-      }
-
-      // keyed
-      ret = video_encoder_encode_frame(private_->venc_keyed_,private_->pixbuf);
-      if (ret != 0){
-          ROS_ERROR("failed to encode frame: %d", ret);
-          exit(EXIT_FAILURE);
-      }
+      private_->venc_thread = boost::thread(boost::bind(&FrameEncode::encode , private_->rfe));
+      private_->keyed_venc_thread = boost::thread(boost::bind(&FrameEncode::encode , private_->kfe));
 
       // thumbnail
-      double midway = dump_images_config_->bagDuration / 2.0;
-      double curTime = dump_images_config_->nextTime;
+      double midway = private_->bag_duration / 2.0;
+      double curTime = private_->next_event_time;
       if ( curTime >= midway && !private_->thumbnail_taken )
       {
           private_->thumbnail_taken = true;
@@ -656,33 +814,28 @@ void VisualizationManager::onUpdate()
               ROS_ERROR("failed writing poster file %s: err %d",dump_images_config_->poster_path.c_str(),posterWriter.error());
               exit(EXIT_FAILURE);
           }
-          ROS_INFO("Wrote thumbnail and poster at %f of %f (midway = %f)\n", curTime, dump_images_config_->bagDuration, midway);
+          ROS_INFO("Wrote thumbnail and poster at %f of %f (midway = %f)\n", curTime, private_->bag_duration, midway);
       }
 
       dumped_frame_count_++;
-      if (  dump_images_config_->nextTime > dump_images_config_->bagDuration )
-      {
-          // destroy encoders
-          video_encoder_destroy(private_->venc_);
-          video_encoder_destroy(private_->venc_keyed_);
-
-          if(private_->pixbuf != NULL){
-              free(private_->pixbuf);
-          }
-          ROS_INFO(
-                   "Finished dumping %f second bag with %d frames.",
-                   dump_images_config_->bagDuration, uint(dumped_frame_count_)
-                   );
-
-          dbus_->call("kill");
-          exit(EXIT_SUCCESS);
-      }
   }
 }
 
 
 void VisualizationManager::nextFrame()
 {
+  if (private_->bag_duration < 0){
+      QDBusReply<double> reply = dbus_->call("bag_duration", dump_images_config_->timeout);
+      private_->bag_duration = reply.value();
+      ROS_INFO("Bag duration: %.10f sec",private_->bag_duration);
+
+      if (private_->bag_duration < dump_images_config_->frameWidth){
+          ROS_ERROR("bag duration %f is less than frame width %f",private_->bag_duration, dump_images_config_->frameWidth);
+          exit(EXIT_FAILURE);
+      }
+  }
+
+
   QDBusReply<double> reply = dbus_->call("read", dump_images_config_->frameWidth, dump_images_config_->timeout);
   if (!reply.isValid())
   {
@@ -693,12 +846,11 @@ void VisualizationManager::nextFrame()
     exit(EXIT_FAILURE);
   }
 
-  dump_images_config_->lastEventTime = reply.value();
-  double previous = dump_images_config_->nextTime;
-  double next = dump_images_config_->nextTime + dump_images_config_->frameWidth;
+  // BEWARE: tricky implicit locking on dump_images_config_ with onUpdate() method
+  private_->last_event_time = reply.value();
+  private_->dump_req_cnt++;
 
-  dump_images_config_->nextTime = next;
-  startUpdate();
+  QTimer::singleShot(0, this, SLOT(onUpdate()));
 }
 
 void VisualizationManager::updateTime()
@@ -795,6 +947,8 @@ void VisualizationManager::load( const Config& config )
   view_manager_->load( config.mapGetChild( "Views" ));
 
   startUpdate();
+  private_->dbus_thread = boost::thread(boost::bind(&VisualizationManager::nextFrame, this));
+  return;
 }
 
 void VisualizationManager::save( Config config ) const
@@ -845,6 +999,7 @@ void VisualizationManager::updateBackgroundColor()
 
 void VisualizationManager::updateFps()
 {
+
   if ( update_timer_->isActive() )
   {
     startUpdate();
