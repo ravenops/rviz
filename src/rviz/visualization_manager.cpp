@@ -664,7 +664,7 @@ void VisualizationManager::onUpdate()
         std::array<char, 128> buffer;
         std::string result;
 
-        ROS_INFO("[vm/rvnsnap] running '%s'",command.c_str());
+        ROS_DEBUG("[vm/rvnsnap] running '%s'",command.c_str());
         FILE* pipe = popen(command.c_str(), "r");
         if (!pipe)
             {
@@ -675,9 +675,9 @@ void VisualizationManager::onUpdate()
             result += buffer.data();
         }
         int return_code = pclose(pipe);
-        ROS_INFO("[vm/rvnsnap] '%s' returns %d\n%s",command.c_str(),return_code,result.c_str());
+        ROS_DEBUG("[vm/rvnsnap] '%s' returns %d\n%s",command.c_str(),return_code,result.c_str());
         if(return_code != 0){
-            ROS_ERROR("[vm/rvnsnap] failed to successfully run rvnsnap");
+            ROS_ERROR("[vm/rvnsnap] failed to successfully run '%s' returns %d\n%s",command.c_str(),return_code,result.c_str());
             dbus_->call("kill");
             exit(EXIT_FAILURE);
         }
