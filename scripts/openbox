@@ -1,8 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 echo "openbox: using config file: ${1}"
-cat "${1}"
 echo "openbox: will touch file '${2}' when ready"
 openbox_args="${3:-}"
-
+echo "openbox: using additional arguments ${openbox_args}"
 exec openbox ${openbox_args} --sm-disable --config-file "${1}" --startup "touch '${2}'"
