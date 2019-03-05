@@ -3,4 +3,6 @@ set -euo pipefail
 echo "openbox: using config file: ${1}"
 cat "${1}"
 echo "openbox: will touch file '${2}' when ready"
-exec openbox --sm-disable --debug --config-file "${1}" --startup "touch '${2}'"
+openbox_args="${3:-}"
+
+exec openbox ${openbox_args} --sm-disable --config-file "${1}" --startup "touch '${2}'"
