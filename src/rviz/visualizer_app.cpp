@@ -177,7 +177,7 @@ bool VisualizerApp::init(int argc, char **argv)
       ("dump-fps-num",po::value<int>()->default_value(30), "Numerator of frames per second for dumped x264 stream.  Must be an integer.")
       ("dump-fps-den",po::value<int>()->default_value(1), "Denominator number of frames per second for dumped x264 stream.  Must be an integer.")
       ("dump-timeout",po::value<float>()->default_value(30), "Retry initial connection to DBus for X seconds failing.")
-      ("h264-encoder",po::value<std::string>()->default_value("libx264"), "libav codec name for h264 encoder to use");
+      ("h264-encoder",po::value<std::string>()->default_value("libx264"), "libav codec name for h264 encoder to use")
       ("num-threads",po::value<int>()->default_value(0), "Number of available encode threads. Leave as zero to let encoder auto-select.");
     po::variables_map vm;
     std::string display_config, fixed_frame, splash_path, help_path;
