@@ -120,6 +120,7 @@ std::map<std::string,std::string> VisualizerApp::env_param_names =
      {"RVN_RVIZ_EXPECT_X11_WIDTH","expect-x11-width"},
      {"RVN_RVIZ_EXPECT_X11_HEIGHT","expect-x11-height"},
      {"RVN_RVIZ_H264_ENCODER","h264-encoder"},
+     {"RVN_RVIZ_NUM_THREADS","num-threads"},
     };
 
 void VisualizerApp::setApp(QApplication *app)
@@ -177,7 +178,7 @@ bool VisualizerApp::init(int argc, char **argv)
       ("dump-fps-den",po::value<int>()->default_value(1), "Denominator number of frames per second for dumped x264 stream.  Must be an integer.")
       ("dump-timeout",po::value<float>()->default_value(30), "Retry initial connection to DBus for X seconds failing.")
       ("h264-encoder",po::value<std::string>()->default_value("libx264"), "libav codec name for h264 encoder to use");
-
+      ("num-threads",po::value<int>()->default_value(0), "Number of available encode threads. Leave as zero to let encoder auto-select.");
     po::variables_map vm;
     std::string display_config, fixed_frame, splash_path, help_path;
     bool enable_ogre_log = false;
@@ -297,6 +298,7 @@ bool VisualizerApp::init(int argc, char **argv)
         dump_images_config->expectX11Width = vm["expect-x11-width"].as<int>();
         dump_images_config->expectX11Height = vm["expect-x11-height"].as<int>();
         dump_images_config->h264Encoder = vm["h264-encoder"].as<std::string>();
+        dump_images_config->nThreads = vm["num-threads"].as<int>();
       }
     }
     catch (std::exception &e)

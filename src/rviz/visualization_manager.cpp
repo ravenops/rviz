@@ -753,6 +753,8 @@ void VisualizationManager::onUpdate()
               exit(EXIT_FAILURE);
           }
 
+          params.thread_count = dump_images_config_->nThreads;
+
           // allocate pixel buffer
           private_->pixbuf = (uint8_t*) malloc(sizeof(uint8_t)*img.bytesPerLine()*img.height());
 

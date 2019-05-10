@@ -32,6 +32,9 @@ typedef struct {
     // name of libav codec to use
     const char* h264Encoder;
 
+    // How many threads EACH encode session will create somewhere between nCPU/RVN_TASKS_MAX_WORKERS and nCPU
+    int thread_count;
+
 } VideoEncodeParams;
 
 VideoEncoder* video_encoder_init(VideoEncodeParams args);
