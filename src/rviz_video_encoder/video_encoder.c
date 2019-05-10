@@ -159,8 +159,8 @@ VideoEncoder* video_encoder_init(VideoEncodeParams params){
         av_dict_set(&opt, "preset", enc->params.preset, 0);
         av_dict_set(&opt, "profile", "baseline", 0);
 
-        av_dict_set_int(&opt, "threads", enc->cc->thread_count, 0);
-        av_dict_set_int(&opt, "sliced_threads", (enc->cc->thread_count/2)*3, 0);
+        av_dict_set_int(&opt, "threads", enc->cc->thread_count*3/2, 0);
+        av_dict_set_int(&opt, "sliced_threads", enc->cc->thread_count, 0);
 
     }else if(strcmp(enc->params.h264Encoder,"h264_nvenc") == 0){
         // top level
