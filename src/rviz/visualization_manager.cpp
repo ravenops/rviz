@@ -738,6 +738,10 @@ void VisualizationManager::onUpdate()
           params.preset = RVN_LIBAV_PRESET;
           params.maxWidth = dump_images_config_->maxWidth;
 
+          params.thread_count = dump_images_config_->nThreads;
+
+          // end common parameters
+
           params.output_path = dump_images_config_->captured_path.c_str();
           private_->venc_ = video_encoder_init(params);
           if (private_->venc_ == NULL){

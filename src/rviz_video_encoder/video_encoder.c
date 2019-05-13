@@ -140,8 +140,7 @@ VideoEncoder* video_encoder_init(VideoEncodeParams params){
     enc->cc->time_base = enc->st->time_base;
     enc->cc->pix_fmt = enc->frame_scaled->format;
 
-    // RVN:TODO this is good neighboor mode. probably should have drag race mode
-    //enc->cc->thread_count = 1;
+    enc->cc->thread_count = enc->params.thread_count;
 
     if (enc->oc->oformat->flags & AVFMT_GLOBALHEADER)
         enc->cc->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
@@ -159,6 +158,8 @@ VideoEncoder* video_encoder_init(VideoEncodeParams params){
         //preset
         av_dict_set(&opt, "preset", enc->params.preset, 0);
         av_dict_set(&opt, "profile", "baseline", 0);
+
+        av_dict_set_int(&opt, "threads", enc->cc->thread_count*3/2, 0);
 
     }else if(strcmp(enc->params.h264Encoder,"h264_nvenc") == 0){
         // top level

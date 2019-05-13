@@ -24,6 +24,7 @@ struct DumpImagesConfig {
   int expectX11Width,expectX11Height;
 
   std::string h264Encoder;
+  int nThreads;
 };
 
 } // namespace rviz
