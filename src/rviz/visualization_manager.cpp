@@ -695,14 +695,7 @@ void VisualizationManager::onUpdate()
 
   if (should_dump)
   {
-      QImage img = screen_->grabWindow(0).toImage();
-      if ( abs(img.width() - dump_images_config_->expectX11Width) > 32 || abs(img.height() - dump_images_config_->expectX11Height) > 32) {
-          ROS_ERROR("Expected X11 window size mismatch: actual=%dx%d expected=%dx%d",img.width(),img.height(),
-                    dump_images_config_->expectX11Width,dump_images_config_->expectX11Height);
-          ROS_ERROR("Expected X11 size mismatch usually indicates an overloaded (or, more rarely, misconfigured) virtual X11 environment");
-          exit(EXIT_FAILURE);
-      }
-
+      QImage img = screen_->grabWindow(0,0,0,dump_images_config_->expectX11Width,dump_images_config_->expectX11Height).toImage();
       if (img.width() % 8 || img.height() % 8) {
           // ensure screenshot width are height are divisible by four
           int w = img.width();
