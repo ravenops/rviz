@@ -155,7 +155,7 @@ class BagReader(object):
         for topic, raw_msg, t in self._generator:
             if self.first_read:
                 if topic != "/rvn/rviz/ctrl/preload_start":
-                    self.preload_end_time = self._bag.get_start_time()
+                    raise Exception("first message of bag must be preload start")
                 self.first_read = False
             if self._reached_frame_end(t):
                 break
