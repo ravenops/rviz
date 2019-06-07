@@ -132,29 +132,19 @@ class BagReader(object):
         return True
 
 
-    def reseek( self, seek_point, timeout=30.0 ):
+    def initialize_generator( self ):
         """ stops the current itteration and resets the read loop criteria. input time is from start of bag not Unix time"""
 
-        if type(seek_point) is float or type(seek_point) is int:
-            seek_point = seek_point + self._bag.get_start_time()
-            seek_point = rospy.Time(seek_point)
+        self._frame_end = rospy.Time(self._bag.get_start_time())
 
-        if rospy.Time(self._bag.get_end_time()) <= seek_point:
-            raise Exception("A seek point of {} is greater than the end of bag: {}".format(seek_point, self._bag.get_end_time()))
-
-        self._frame_end = seek_point
         self._generator = self._bag.read_messages(
             raw        = True,
-            start_time = seek_point,
-            end_time   = rospy.Time(self._bag.get_end_time()),
             connection_filter = self._header_callback )
 
         # reset clock
-        self.clock_out = seek_point
-
+        self.clock_out = rospy.Time(self._bag.get_start_time())
 
     def get_next_frame( self, duration, timeout=30.0 ):
-        """ loop over all messages in bag. Loop start defined by 'reseek()' """
 
         if type(duration) is float:
             duration = rospy.Duration(duration)
@@ -312,7 +302,7 @@ class PublicationControl(object):
 
     def bag_duration(self,timeout):
         self.bag_reader.wait_for_bag(timeout)
-        self.bag_reader.reseek(0.0,timeout)
+        self.bag_reader.initialize_generator()
         return self.bag_reader.get_duration()
 
     def preload_duration(self):
