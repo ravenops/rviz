@@ -132,29 +132,19 @@ class BagReader(object):
         return True
 
 
-    def reseek( self, seek_point, timeout=30.0 ):
+    def initialize_generator( self ):
         """ stops the current itteration and resets the read loop criteria. input time is from start of bag not Unix time"""
 
-        if type(seek_point) is float or type(seek_point) is int:
-            seek_point = seek_point + self._bag.get_start_time()
-            seek_point = rospy.Time(seek_point)
+        self._frame_end = rospy.Time(self._bag.get_start_time())
 
-        if rospy.Time(self._bag.get_end_time()) <= seek_point:
-            raise Exception("A seek point of {} is greater than the end of bag: {}".format(seek_point, self._bag.get_end_time()))
-
-        self._frame_end = seek_point
         self._generator = self._bag.read_messages(
             raw        = True,
-            start_time = seek_point,
-            end_time   = rospy.Time(self._bag.get_end_time()),
             connection_filter = self._header_callback )
 
         # reset clock
-        self.clock_out = seek_point
-
+        self.clock_out = rospy.Time(self._bag.get_start_time())
 
     def get_next_frame( self, duration, timeout=30.0 ):
-        """ loop over all messages in bag. Loop start defined by 'reseek()' """
 
         if type(duration) is float:
             duration = rospy.Duration(duration)
@@ -165,19 +155,19 @@ class BagReader(object):
         for topic, raw_msg, t in self._generator:
             if self.first_read:
                 if topic != "/rvn/rviz/ctrl/preload_start":
-                    self.preload_end_time = self._bag.get_start_time()
+                    raise Exception("first message of bag must be preload start")
                 self.first_read = False
-            if self._reached_frame_end(t):
-                break
-            else:
-                if topic == "/rvn/rviz/ctrl/preload_end":
-                    self.preload_end_time = t.to_sec()
 
             if self.clock_out < t:
                 self.clock_out = t
 
+            if topic == "/rvn/rviz/ctrl/preload_end":
+                self.preload_end_time = self.clock_out.to_sec()
+
             yield {"topic" : topic, "raw_msg" : raw_msg, "t": t}
 
+            if self._reached_frame_end(t):
+                break
         return
 
 
@@ -298,21 +288,22 @@ class PublicationControl(object):
             # publish the message
             for msg in self.bag_reader.get_next_frame( duration, timeout=timeout ):
                 self._publish_msg( msg )
+
+                # return the clock via d-bus and possibly publish to system
+                if self.bag_reader.clock_out - old_clock > clock_dt:
+                    old_clock = self.bag_reader.clock_out
+                    self._clock_publisher.publish(self.bag_reader.clock_out)
+
         except Exception as e:
             rospy.logerr("unable to get next frame: %r" % (e))
             return self.bag_reader.clock_out.to_sec()
-
-        # return the clock via d-bus and possibly publish to system
-        if self.bag_reader.clock_out - old_clock > clock_dt:
-            old_clock = self.bag_reader.clock_out
-            self._clock_publisher.publish(self.bag_reader.clock_out)
 
         return old_clock.to_sec() - self.bag_reader._bag.get_start_time()
 
 
     def bag_duration(self,timeout):
         self.bag_reader.wait_for_bag(timeout)
-        self.bag_reader.reseek(0.0,timeout)
+        self.bag_reader.initialize_generator()
         return self.bag_reader.get_duration()
 
     def preload_duration(self):

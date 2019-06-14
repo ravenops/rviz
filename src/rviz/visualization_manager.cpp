@@ -653,7 +653,7 @@ void VisualizationManager::onUpdate()
                  private_->last_dump_time  * 100.0 / private_->bag_duration,
                  (double) dumped_frame_count_ / private_->last_event_time,
                  ave_render_time / 1000.0,
-                 private_->last_event_time >= private_->preload_duration ? "DUMP" : "PRLD");
+                 should_dump ? "DUMP" : "PRLD");
 
         private_->stat_render_sum_micro = 0;
         private_->stat_render_cnt = 0;
