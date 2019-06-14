@@ -157,17 +157,17 @@ class BagReader(object):
                 if topic != "/rvn/rviz/ctrl/preload_start":
                     raise Exception("first message of bag must be preload start")
                 self.first_read = False
-            if self._reached_frame_end(t):
-                break
-            else:
-                if topic == "/rvn/rviz/ctrl/preload_end":
-                    self.preload_end_time = t.to_sec()
+
+            if topic == "/rvn/rviz/ctrl/preload_end":
+                self.preload_end_time = t.to_sec()
 
             if self.clock_out < t:
                 self.clock_out = t
 
             yield {"topic" : topic, "raw_msg" : raw_msg, "t": t}
 
+            if self._reached_frame_end(t):
+                break
         return
 
 
@@ -288,14 +288,15 @@ class PublicationControl(object):
             # publish the message
             for msg in self.bag_reader.get_next_frame( duration, timeout=timeout ):
                 self._publish_msg( msg )
+
+                # return the clock via d-bus and possibly publish to system
+                if self.bag_reader.clock_out - old_clock > clock_dt:
+                    old_clock = self.bag_reader.clock_out
+                    self._clock_publisher.publish(self.bag_reader.clock_out)
+
         except Exception as e:
             rospy.logerr("unable to get next frame: %r" % (e))
             return self.bag_reader.clock_out.to_sec()
-
-        # return the clock via d-bus and possibly publish to system
-        if self.bag_reader.clock_out - old_clock > clock_dt:
-            old_clock = self.bag_reader.clock_out
-            self._clock_publisher.publish(self.bag_reader.clock_out)
 
         return old_clock.to_sec() - self.bag_reader._bag.get_start_time()
 
