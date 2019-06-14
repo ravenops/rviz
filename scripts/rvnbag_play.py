@@ -158,11 +158,11 @@ class BagReader(object):
                     raise Exception("first message of bag must be preload start")
                 self.first_read = False
 
-            if topic == "/rvn/rviz/ctrl/preload_end":
-                self.preload_end_time = t.to_sec()
-
             if self.clock_out < t:
                 self.clock_out = t
+
+            if topic == "/rvn/rviz/ctrl/preload_end":
+                self.preload_end_time = self.clock_out.to_sec()
 
             yield {"topic" : topic, "raw_msg" : raw_msg, "t": t}
 
